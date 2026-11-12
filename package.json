@@ -1,0 +1,13 @@
+{
+  "name": "hutian-world", "private": true, "type": "module", "version": "0.1.0",
+  "packageManager": "pnpm@11.24.0", "engines": {"node": ">=22.19.0"},
+  "scripts": {
+    "dev": "pnpm --filter @hutian-world/contracts build && pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm --filter @hutian-world/contracts build && pnpm -r typecheck",
+    "start": "pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web start",
+    "setup:local": "node scripts/setup-local.mjs",
+    "db:migrate": "pnpm --filter @hutian-world/contracts build && pnpm --filter @hutian-world/api db:migrate"
+  },
+  "devDependencies": {"pg": "8.22.0", "typescript": "6.0.3", "@types/node": "24.13.3"}
+}

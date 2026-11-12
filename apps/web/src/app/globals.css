@@ -1,0 +1,429 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "tw-shimmer";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  color-scheme: dark;
+  --radius: 0.5rem;
+  --background: #101010;
+  --foreground: #f2f2f2;
+  --card: #1a1a1a;
+  --card-foreground: #f2f2f2;
+  --popover: #202124;
+  --popover-foreground: #f2f2f2;
+  --primary: #00d992;
+  --primary-foreground: #07110d;
+  --secondary: #202124;
+  --secondary-foreground: #f2f2f2;
+  --muted: #202124;
+  --muted-foreground: #bdbdbd;
+  --accent: #242927;
+  --accent-foreground: #f2f2f2;
+  --destructive: #ef6b67;
+  --border: #2b2d2f;
+  --input: #2b2d2f;
+  --ring: #00d992;
+  --warning: #f2c94c;
+  --faint: #818783;
+  --surface-raised: #202124;
+  --surface-active: #242927;
+  --line-strong: #3d3a39;
+  --sidebar: #101010;
+  --sidebar-foreground: #f2f2f2;
+  --sidebar-primary: #00d992;
+  --sidebar-primary-foreground: #07110d;
+  --sidebar-accent: #242927;
+  --sidebar-accent-foreground: #f2f2f2;
+  --sidebar-border: #2b2d2f;
+  --sidebar-ring: #00d992;
+}
+
+@theme inline {
+  --font-sans:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    sans-serif;
+  --font-mono: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-warning: var(--warning);
+  --color-faint: var(--faint);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-active: var(--surface-active);
+  --color-line-strong: var(--line-strong);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 1px);
+  @keyframes collapsible-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+  }
+  @keyframes collapsible-up {
+    from {
+      height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/60;
+  }
+
+  html {
+    @apply bg-background;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  a,
+  button,
+  input,
+  textarea,
+  select {
+    @apply transition-colors duration-150;
+  }
+
+  code {
+    @apply font-mono text-[10px] text-faint;
+  }
+}
+
+@layer components {
+  .world-content {
+    @apply mx-auto flex w-full max-w-[1680px] flex-col gap-[18px] px-5 py-6 lg:px-[34px];
+  }
+
+  .page-header {
+    @apply flex flex-col justify-between gap-4 border-b pb-4 sm:flex-row sm:items-end;
+  }
+
+  .page-eyebrow {
+    @apply mb-1.5 text-[9px] tracking-[0.16em] text-muted-foreground;
+  }
+
+  .page-title {
+    @apply text-[clamp(22px,2.4vw,28px)] leading-[1.16] font-[570] tracking-[-0.025em];
+  }
+
+  .page-description {
+    @apply mt-1.5 max-w-3xl text-[13px] text-muted-foreground;
+  }
+
+  .page-meta {
+    @apply mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground;
+  }
+
+  .page-actions {
+    @apply flex shrink-0 items-center gap-2;
+  }
+
+  .workspace-surface {
+    @apply min-w-0 overflow-hidden border-y bg-card;
+  }
+
+  .object-header {
+    @apply border-b pb-4;
+  }
+
+  .object-header-path {
+    @apply mb-3 min-h-8;
+  }
+
+  .object-header-main {
+    @apply flex items-start gap-4;
+  }
+
+  .object-header-media {
+    @apply flex size-12 shrink-0 items-center justify-center rounded-lg border bg-surface-raised text-primary;
+  }
+
+  .object-header-title {
+    @apply truncate text-[clamp(23px,2.5vw,30px)] leading-[1.18] font-[570] tracking-[-0.025em];
+  }
+
+  .object-header-description {
+    @apply mt-1 max-w-3xl text-[13px] text-muted-foreground;
+  }
+
+  .object-header-metadata {
+    @apply mt-3 flex flex-wrap items-center gap-2;
+  }
+
+  .object-header-action {
+    @apply ml-auto flex shrink-0 items-center gap-2;
+  }
+
+  .panel {
+    @apply overflow-hidden rounded-lg border bg-card;
+  }
+
+  .panel-header {
+    @apply flex min-h-14 items-center justify-between gap-4 border-b px-4 py-3;
+  }
+
+  .panel-title {
+    @apply text-[15px] font-semibold;
+  }
+
+  .panel-description {
+    @apply mt-0.5 text-xs text-muted-foreground;
+  }
+
+  .metric-grid {
+    @apply grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .metric {
+    @apply flex min-h-[88px] items-center gap-3 rounded-lg border bg-card px-4 py-3;
+  }
+
+  .metric-icon {
+    @apply flex size-9 shrink-0 items-center justify-center rounded-md border bg-surface-raised text-primary;
+  }
+
+  .metric-value {
+    @apply text-2xl leading-none font-semibold tracking-[-0.03em];
+  }
+
+  .metric-label {
+    @apply mt-1 text-[10px] text-muted-foreground;
+  }
+
+  .definition-grid {
+    @apply grid grid-cols-1 gap-x-8 gap-y-4 md:grid-cols-2;
+  }
+
+  .definition-grid dt {
+    @apply text-[10px] text-faint;
+  }
+
+  .definition-grid dd {
+    @apply mt-1 text-[13px];
+  }
+
+  .table-copy {
+    @apply flex min-w-0 flex-col gap-0.5;
+  }
+
+  .table-copy > strong {
+    @apply truncate text-[13px] font-semibold;
+  }
+
+  .table-copy > small {
+    @apply line-clamp-2 text-[10px] leading-4 text-muted-foreground;
+  }
+
+  .primary-tabs {
+    @apply min-w-0 overflow-hidden;
+  }
+
+  .secondary-layout {
+    @apply grid max-w-[1280px] grid-cols-1 gap-5 md:grid-cols-[152px_minmax(0,1fr)];
+  }
+
+  .communication-workbench {
+    @apply grid h-full min-h-0 grid-cols-[296px_minmax(0,1fr)] overflow-hidden bg-background;
+  }
+
+  .communication-page {
+    @apply flex h-[calc(100dvh-56px)] min-h-0 flex-col;
+  }
+
+  .world-content:has(> .communication-page) {
+    @apply max-w-none gap-0 p-0;
+  }
+
+  .communication-directory {
+    @apply flex h-full min-h-0 flex-col border-r bg-background/20;
+  }
+
+  .communication-thread-pane {
+    @apply flex h-full min-h-0 min-w-0 flex-col;
+  }
+
+  .communication-message-group {
+    @apply flex flex-col gap-1;
+  }
+
+  .worldline-list > [data-slot="item"] {
+    @apply rounded-none border-x-0 border-t-0 px-4 py-3 last:border-b-0;
+  }
+}
+
+/* Workspace tab recipes take precedence over the shadcn primitive defaults. */
+.primary-tabs > [data-slot="tabs-list"] {
+  @apply h-auto w-full max-w-full justify-start gap-6 overflow-x-auto overflow-y-hidden rounded-none border-b bg-transparent p-0;
+}
+
+.primary-tabs > [data-slot="tabs-list"] > [data-slot="tabs-trigger"] {
+  @apply h-auto flex-none rounded-none border-0 border-b-2 border-transparent px-0 py-3 text-muted-foreground shadow-none after:hidden;
+}
+
+.primary-tabs > [data-slot="tabs-list"] > [data-slot="tabs-trigger"][data-state="active"] {
+  @apply border-b-primary bg-transparent text-foreground shadow-none;
+}
+
+.secondary-tabs > [data-slot="tabs-list"] {
+  @apply h-auto w-full flex-col items-stretch justify-start gap-1 rounded-none bg-transparent p-0;
+}
+
+.secondary-tabs > [data-slot="tabs-list"] > [data-slot="tabs-trigger"] {
+  @apply h-auto w-full flex-none justify-start rounded-md border-0 border-l-2 border-transparent px-3 py-2 text-muted-foreground after:hidden;
+}
+
+.secondary-tabs > [data-slot="tabs-list"] > [data-slot="tabs-trigger"][data-state="active"] {
+  @apply border-l-primary bg-surface-active text-foreground shadow-none;
+}
+
+@media (max-width: 820px) {
+  .world-content {
+    @apply px-[15px] py-4;
+  }
+
+  .world-content:has(> .communication-page) {
+    @apply p-0;
+  }
+
+  .page-header {
+    @apply items-start;
+  }
+
+  .page-actions,
+  .object-header-action {
+    @apply w-full;
+  }
+
+  .page-actions > *,
+  .object-header-action > * {
+    @apply min-h-[42px];
+  }
+
+  .object-header-main {
+    @apply flex-wrap;
+  }
+
+  .object-header-media {
+    @apply size-11;
+  }
+
+  .object-header-action {
+    @apply ml-0;
+  }
+
+  .secondary-layout {
+    @apply gap-3;
+  }
+
+  .secondary-tabs {
+    @apply min-w-0;
+  }
+
+  .secondary-tabs > [data-slot="tabs-list"] {
+    @apply flex-row items-center justify-start overflow-x-auto border-b;
+  }
+
+  .secondary-tabs > [data-slot="tabs-list"] > [data-slot="tabs-trigger"] {
+    @apply min-h-[42px] w-auto shrink-0 justify-center rounded-none border-0 border-b-2 border-transparent px-3;
+  }
+
+  .secondary-tabs > [data-slot="tabs-list"] > [data-slot="tabs-trigger"][data-state="active"] {
+    @apply border-b-primary bg-transparent;
+  }
+
+  .communication-workbench {
+    @apply grid-cols-1;
+  }
+
+  .communication-directory {
+    @apply border-r-0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
+
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
+
+@layer components {
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:bg-background focus:p-2;
+  }
+  .editor-form {
+    @apply grid gap-4;
+  }
+  .form-footer {
+    @apply flex justify-end gap-2;
+  }
+  .field {
+    @apply grid gap-2;
+  }
+  .field-help {
+    @apply text-xs text-muted-foreground;
+  }
+  .form-error {
+    @apply text-sm text-destructive;
+  }
+  .native-select {
+    @apply h-9 w-full rounded-md border bg-card px-2.5 text-sm;
+  }
+  .error-page {
+    @apply mx-auto grid min-h-80 max-w-lg content-center gap-3 p-5;
+  }
+  .page-loading {
+    @apply p-5 text-sm text-muted-foreground;
+  }
+}
+
+@media (max-width: 820px) {
+  .communication-workbench[data-focused="true"] .communication-directory,
+  .communication-workbench[data-focused="false"] .communication-thread-pane {
+    display: none;
+  }
+}
