@@ -45,7 +45,7 @@ export function RuntimeDirectory({ devices, endpoint }: { devices: DockDirectory
       </div>
       {results.length ? <Table className="min-w-[620px] table-fixed">
         <TableHeader><TableRow>
-          <TableHead className="w-[35%] pl-5">机器</TableHead>
+          <TableHead className="w-[35%] pl-5">机器编号</TableHead>
           <TableHead>Harness</TableHead>
           <TableHead className="w-28">可用 Runtime</TableHead>
           <TableHead className="w-24">连接状态</TableHead>
@@ -55,7 +55,7 @@ export function RuntimeDirectory({ devices, endpoint }: { devices: DockDirectory
           <TableCell className="pl-5">
             <Link href={`/runtimes/${device.nodeId}`} prefetch={false} className="flex min-w-0 items-center gap-3 outline-none after:absolute after:inset-0 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring">
               <HardDrive className="size-5 shrink-0 text-muted-foreground" />
-              <div className="min-w-0"><strong className="block truncate text-sm font-medium">{deviceLabel(device)}</strong>
+              <div className="min-w-0"><strong className="block truncate text-sm font-medium" title={device.nodeId}>{deviceLabel(device)}</strong>
                 <span className="mt-1 block truncate text-xs text-muted-foreground">{[device.platform && (platformNames[device.platform] ?? device.platform), device.hostname].filter(Boolean).join(" · ") || "设备信息未报告"}</span>
               </div>
             </Link>

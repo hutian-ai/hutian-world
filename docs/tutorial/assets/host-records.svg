@@ -1,0 +1,52 @@
+<ns0:svg xmlns:ns0="http://www.w3.org/2000/svg" width="1040" height="850" viewBox="0 0 1040 850" role="img" aria-labelledby="title desc">
+  <ns0:title id="title">宿主原请求与交付记录</ns0:title>
+  <ns0:desc id="desc">新请求先写 job、冻结连接与提示、保存 Dock 请求回执，执行确认后准备回复，发送回 Matrix 并保存 replyEventId。重入沿原请求观察。</ns0:desc>
+  <ns0:defs>
+    <ns0:marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#9eafa2" />
+    </ns0:marker>
+    <ns0:marker id="pending" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#a35c20" />
+    </ns0:marker>
+  </ns0:defs>
+  <ns0:rect width="1040" height="850" fill="#f4f7f1" />
+  <ns0:g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <ns0:text x="40" y="45" font-size="24" font-weight="600" fill="#18392f">一条原运行如何被核对与交付</ns0:text>
+    <ns0:rect x="40" y="90" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="126" font-size="21" font-weight="600" fill="#18392f">1  job.json + prompt.txt</ns0:text>
+    <ns0:text x="62" y="159" font-size="17" font-weight="400" fill="#51655b">runId / scope / Agent device ID</ns0:text>
+    <ns0:text x="62" y="185" font-size="17" font-weight="400" fill="#51655b">原消息与实际上下文</ns0:text>
+    <ns0:text x="62" y="211" font-size="17" font-weight="400" fill="#51655b">冻结 dock-client.json</ns0:text>
+    <ns0:rect x="570" y="90" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="126" font-size="21" font-weight="600" fill="#18392f">2  dock-receipt.json</ns0:text>
+    <ns0:text x="592" y="159" font-size="17" font-weight="400" fill="#51655b">先保存不可变的客户端原请求</ns0:text>
+    <ns0:text x="592" y="185" font-size="17" font-weight="400" fill="#51655b">nodeId / runId / provider / input</ns0:text>
+    <ns0:text x="592" y="211" font-size="17" font-weight="400" fill="#51655b">回执本身不代表任务已完成</ns0:text>
+    <ns0:path d="M 470 165 H 570" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 785 240 V 325" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:rect x="570" y="325" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="361" font-size="21" font-weight="600" fill="#18392f">3  run.stdout.json</ns0:text>
+    <ns0:text x="592" y="394" font-size="17" font-weight="400" fill="#51655b">只有确认 completed 才提取结果</ns0:text>
+    <ns0:text x="592" y="420" font-size="17" font-weight="400" fill="#51655b">进度与诊断在 run.stderr.log</ns0:text>
+    <ns0:text x="592" y="446" font-size="17" font-weight="400" fill="#51655b">unknown 不自动变成新 run</ns0:text>
+    <ns0:rect x="40" y="325" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="361" font-size="21" font-weight="600" fill="#18392f">4  reply.json</ns0:text>
+    <ns0:text x="62" y="394" font-size="17" font-weight="400" fill="#51655b">准备原回复和 transactionId</ns0:text>
+    <ns0:text x="62" y="420" font-size="17" font-weight="400" fill="#51655b">再次观察可补交这份回复</ns0:text>
+    <ns0:text x="62" y="446" font-size="17" font-weight="400" fill="#51655b">不需要重新执行模型</ns0:text>
+    <ns0:path d="M 570 400 H 470" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 255 475 V 560" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:rect x="40" y="560" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="596" font-size="21" font-weight="600" fill="#18392f">5  Matrix sendMessage</ns0:text>
+    <ns0:text x="62" y="629" font-size="17" font-weight="400" fill="#51655b">replyTo = 原 eventId</ns0:text>
+    <ns0:text x="62" y="655" font-size="17" font-weight="400" fill="#51655b">取得真实回复 eventId</ns0:text>
+    <ns0:text x="62" y="681" font-size="17" font-weight="400" fill="#51655b">持久保存 job.replyEventId</ns0:text>
+    <ns0:rect x="570" y="560" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="596" font-size="21" font-weight="600" fill="#18392f">6  observation.json</ns0:text>
+    <ns0:text x="592" y="629" font-size="17" font-weight="400" fill="#51655b">worker 保存观察结果</ns0:text>
+    <ns0:text x="592" y="655" font-size="17" font-weight="400" fill="#51655b">/api/state 关联 job 与消息</ns0:text>
+    <ns0:text x="592" y="681" font-size="17" font-weight="400" fill="#51655b">UI 根据原记录显示 replied</ns0:text>
+    <ns0:path d="M 470 635 H 570" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:text x="40" y="774" font-size="17" font-weight="600" fill="#a35c20">重入：没有回执 → 保持 unknown；有回执 → 查原 status；已回帖 → 复用原关联。</ns0:text>
+  </ns0:g>
+</ns0:svg>

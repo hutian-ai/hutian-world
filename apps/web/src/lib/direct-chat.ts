@@ -119,7 +119,7 @@ export async function openDirectChat(peerId: string) {
   }
   const transactionId = roomTransaction(creatorId, peer.userId);
   const result = roomSchema.parse(await chatRequest("/api/rooms", {
-    name: `私聊 · ${peer.name}`.slice(0, 80), transactionId, agentIds: [peer.id],
+    name: `私聊 · ${peer.name}`.slice(0, 80), transactionId, agentIds: [peer.id], kind: 'direct',
   }));
   await readDirectRoom(result.room.id, peer);
 }

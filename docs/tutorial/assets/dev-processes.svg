@@ -1,0 +1,56 @@
+<ns0:svg xmlns:ns0="http://www.w3.org/2000/svg" width="1040" height="740" viewBox="0 0 1040 740" role="img" aria-labelledby="title desc">
+  <ns0:title id="title">当前开发进程与端口</ns0:title>
+  <ns0:desc id="desc">浏览器访问 Next 3340，Next 服务端分别调用 Nest 3341、Matrix 3310 和资源服务。各服务保存自己的正式数据。</ns0:desc>
+  <ns0:defs>
+    <ns0:marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#9eafa2" />
+    </ns0:marker>
+    <ns0:marker id="pending" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#a35c20" />
+    </ns0:marker>
+  </ns0:defs>
+  <ns0:rect width="1040" height="740" fill="#f4f7f1" />
+  <ns0:g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <ns0:text x="40" y="45" font-size="24" font-weight="600" fill="#18392f">先认进程：Web 不是唯一服务端</ns0:text>
+    <ns0:rect x="40" y="80" width="280" height="120" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="116" font-size="21" font-weight="600" fill="#18392f">浏览器</ns0:text>
+    <ns0:text x="62" y="149" font-size="17" font-weight="400" fill="#51655b">React Client Component</ns0:text>
+    <ns0:text x="62" y="175" font-size="17" font-weight="400" fill="#51655b">DevTools：输入与展示</ns0:text>
+    <ns0:rect x="380" y="80" width="280" height="120" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="402" y="116" font-size="21" font-weight="600" fill="#18392f">Next.js · 3340</ns0:text>
+    <ns0:text x="402" y="149" font-size="17" font-weight="400" fill="#51655b">Server Component / Actions</ns0:text>
+    <ns0:text x="402" y="175" font-size="17" font-weight="400" fill="#51655b">apps/web：UI + 服务端适配</ns0:text>
+    <ns0:path d="M 320 140 H 380" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 440 200 V 240 H 180 V 295" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 520 200 V 295" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 600 200 V 240 H 860 V 295" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:rect x="40" y="295" width="280" height="145" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="331" font-size="21" font-weight="600" fill="#18392f">NestJS · 3341</ns0:text>
+    <ns0:text x="62" y="364" font-size="17" font-weight="400" fill="#51655b">apps/api/src/main.ts</ns0:text>
+    <ns0:text x="62" y="390" font-size="17" font-weight="400" fill="#51655b">http.ts → WorkspaceService</ns0:text>
+    <ns0:rect x="380" y="295" width="280" height="145" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="402" y="331" font-size="21" font-weight="600" fill="#18392f">通信 Web API · 3310</ns0:text>
+    <ns0:text x="402" y="364" font-size="16" font-weight="400" fill="#51655b">Matrix examples/web/server.ts</ns0:text>
+    <ns0:text x="402" y="390" font-size="16" font-weight="400" fill="#51655b">worker → dock-host.ts</ns0:text>
+    <ns0:rect x="720" y="295" width="280" height="145" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="742" y="331" font-size="21" font-weight="600" fill="#18392f">资源接入 · Next 内</ns0:text>
+    <ns0:text x="742" y="364" font-size="17" font-weight="400" fill="#51655b">resources.ts / dock.ts</ns0:text>
+    <ns0:text x="742" y="390" font-size="17" font-weight="400" fill="#51655b">服务端凭据与协议调用</ns0:text>
+    <ns0:path d="M 180 440 V 505" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 520 440 V 505" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 860 440 V 505" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:rect x="40" y="505" width="280" height="145" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="541" font-size="21" font-weight="600" fill="#18392f">PostgreSQL · 5432</ns0:text>
+    <ns0:text x="62" y="574" font-size="17" font-weight="400" fill="#51655b">hutian_world</ns0:text>
+    <ns0:text x="62" y="600" font-size="17" font-weight="400" fill="#51655b">TypeORM 显式 migration</ns0:text>
+    <ns0:rect x="380" y="505" width="280" height="145" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="402" y="541" font-size="21" font-weight="600" fill="#18392f">Synapse / Dock</ns0:text>
+    <ns0:text x="402" y="574" font-size="17" font-weight="400" fill="#51655b">消息 → Matrix 数据库</ns0:text>
+    <ns0:text x="402" y="600" font-size="17" font-weight="400" fill="#51655b">执行 → Windows / macOS</ns0:text>
+    <ns0:rect x="720" y="505" width="280" height="145" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="742" y="541" font-size="21" font-weight="600" fill="#18392f">独立后端</ns0:text>
+    <ns0:text x="742" y="574" font-size="17" font-weight="400" fill="#51655b">知识 3320 · 记忆 3332</ns0:text>
+    <ns0:text x="742" y="600" font-size="17" font-weight="400" fill="#51655b">Dock：设备发现与核对</ns0:text>
+    <ns0:text x="40" y="701" font-size="18" font-weight="400" fill="#51655b">路径 A：业务 CRUD 经 Nest。路径 B：通信 / 资源由 Next 服务端接入。</ns0:text>
+  </ns0:g>
+</ns0:svg>

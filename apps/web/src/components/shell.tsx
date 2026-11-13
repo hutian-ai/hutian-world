@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BriefcaseBusiness, ChevronRight, MessageCircle, ServerCog, UsersRound } from "lucide-react";
+import { BookOpen, Brain, ChevronRight, MessageCircle, ServerCog, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -13,9 +13,10 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const navigation = [
-  { href: "/chat", label: "私聊", icon: MessageCircle },
+  { href: "/chat", label: "沟通", icon: MessageCircle },
   { href: "/members", label: "组织", icon: UsersRound },
-  { href: "/projects", label: "项目", icon: BriefcaseBusiness },
+  { href: "/knowledge", label: "知识库", icon: BookOpen },
+  { href: "/memory", label: "记忆", icon: Brain },
   { href: "/runtimes", label: "运行环境", icon: ServerCog },
 ];
 

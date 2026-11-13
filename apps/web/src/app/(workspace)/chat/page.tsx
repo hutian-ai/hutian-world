@@ -3,10 +3,18 @@ import { DirectChat } from "@/components/direct-chat";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { chatErrorMessage, getDirectChat } from "@/lib/direct-chat";
+import { Communications } from "@/components/communications";
+import { readConversation, readDirectory } from "@/lib/communications";
 
-export default async function ChatPage({ searchParams }: { searchParams: Promise<{ peer?: string | string[] }> }) {
-  const { peer } = await searchParams;
+export default async function ChatPage({ searchParams }: { searchParams: Promise<{ peer?: string | string[]; room?: string | string[] }> }) {
+  const { peer, room } = await searchParams;
   try {
+    if (typeof peer !== "string") {
+      const directory = await readDirectory();
+      const selected = typeof room === "string" ? room : undefined;
+      const initial = selected ? await readConversation(selected) : null;
+      return <Communications key={selected ?? "directory"} directory={directory} initial={initial} {...(selected?{selectedId:selected}:{})}/>;
+    }
     const chat = await getDirectChat(typeof peer === "string" ? peer : undefined);
     return <DirectChat key={chat.selected?.id ?? "directory"} {...chat} />;
   } catch (error) {

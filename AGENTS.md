@@ -2,6 +2,7 @@
 
 - Product: a Web workspace for persistent roles and human-coordinated projects. Creators, roles, projects, business grants, tasks and acceptance belong here. Native Harnesses own inference, local assets and sessions.
 - Stack: Next.js / React / Tailwind / shadcn-style Radix primitives, NestJS with Fastify, TypeORM with PostgreSQL, TypeScript and pnpm. Reuse the old hutian design system; do not copy its database or workflow infrastructure.
+- For relevant feature work, consult `../docs/development-references.md` for the collected product and module references, then inspect only the current upstream mechanisms needed. References do not expand MVP scope or override the product and system design.
 - For UI changes follow `DESIGN.md` and `.agents/skills/hutian-world-ui/SKILL.md`. Start from the matching old hutian page and its shared components, then adapt its data and actions to the current app. Use assistant-ui for conversation history, threads and composers.
 - Prefer small complete usable stages. The first stage has members, local private chat, projects, project-role membership and Dock connection settings. Keep empty states and real error handling; do not seed invented online Agents, execution results or metrics.
 - Latest completed stage stays uncommitted for review. Explicit approval to start the next stage authorizes a local commit of the previous stage alone. Do not push, publish, create public repositories, issues or PRs without specific authorization.

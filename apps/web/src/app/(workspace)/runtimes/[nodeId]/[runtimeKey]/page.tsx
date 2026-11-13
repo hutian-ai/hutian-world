@@ -26,7 +26,7 @@ export default async function RuntimeDetailsPage({ params }: { params: Promise<{
 
   const deviceHref = `/runtimes/${nodeId}`;
   const result = await getDockDevice(nodeId);
-  const host = result.state === "error" ? `dock-${nodeId}` : deviceLabel(result.device);
+  const host = result.state === "error" ? nodeId : deviceLabel(result.device);
   const runtime = result.state === "online" ? result.runtimes.find((item) => item.key === runtimeKey) : undefined;
   const title = runtime?.displayName ?? "Runtime 详情";
   const message = result.state === "offline"

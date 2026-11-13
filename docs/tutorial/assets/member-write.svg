@@ -1,0 +1,52 @@
+<ns0:svg xmlns:ns0="http://www.w3.org/2000/svg" width="1040" height="825" viewBox="0 0 1040 825" role="img" aria-labelledby="title desc">
+  <ns0:title id="title">成员保存的函数级调用链</ns0:title>
+  <ns0:desc id="desc">MemberForm 的 FormData 调用 Next saveRole，由 api 函数附加服务端 token 调 Nest，service 通过 TypeORM 写 PostgreSQL。</ns0:desc>
+  <ns0:defs>
+    <ns0:marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#9eafa2" />
+    </ns0:marker>
+    <ns0:marker id="pending" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#a35c20" />
+    </ns0:marker>
+  </ns0:defs>
+  <ns0:rect width="1040" height="825" fill="#f4f7f1" />
+  <ns0:g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <ns0:text x="40" y="45" font-size="24" font-weight="600" fill="#18392f">第一条建议读的代码链：保存成员</ns0:text>
+    <ns0:rect x="40" y="90" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="126" font-size="21" font-weight="600" fill="#18392f">1  MemberForm · 浏览器</ns0:text>
+    <ns0:text x="62" y="159" font-size="17" font-weight="400" fill="#51655b">member-form.tsx</ns0:text>
+    <ns0:text x="62" y="185" font-size="17" font-weight="400" fill="#51655b">draft.instructions → hidden input</ns0:text>
+    <ns0:text x="62" y="211" font-size="17" font-weight="400" fill="#51655b">useActionState → FormData</ns0:text>
+    <ns0:rect x="570" y="90" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="126" font-size="21" font-weight="600" fill="#18392f">2  saveRole · Next 服务端</ns0:text>
+    <ns0:text x="592" y="159" font-size="17" font-weight="400" fill="#51655b">lib/actions.ts</ns0:text>
+    <ns0:text x="592" y="185" font-size="17" font-weight="400" fill="#51655b">roleInput.parse / createRoleInput</ns0:text>
+    <ns0:text x="592" y="211" font-size="17" font-weight="400" fill="#51655b">有 id：PATCH；无 id：POST</ns0:text>
+    <ns0:path d="M 470 165 H 570" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 785 240 V 320" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:rect x="570" y="320" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="356" font-size="21" font-weight="600" fill="#18392f">3  api() · Next 服务端</ns0:text>
+    <ns0:text x="592" y="389" font-size="17" font-weight="400" fill="#51655b">lib/api.ts</ns0:text>
+    <ns0:text x="592" y="415" font-size="17" font-weight="400" fill="#51655b">fetch 3341 + 服务端 Bearer token</ns0:text>
+    <ns0:text x="592" y="441" font-size="17" font-weight="400" fill="#51655b">no-store；成功后 revalidatePath</ns0:text>
+    <ns0:rect x="40" y="320" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="356" font-size="21" font-weight="600" fill="#18392f">4  WorkspaceController · Nest</ns0:text>
+    <ns0:text x="62" y="389" font-size="17" font-weight="400" fill="#51655b">apps/api/src/http.ts</ns0:text>
+    <ns0:text x="62" y="415" font-size="17" font-weight="400" fill="#51655b">LocalApiGuard → Zod 再校验</ns0:text>
+    <ns0:text x="62" y="441" font-size="17" font-weight="400" fill="#51655b">/v1/roles 与 /v1/roles/:id</ns0:text>
+    <ns0:path d="M 570 395 H 470" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 255 470 V 550" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:rect x="40" y="550" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="586" font-size="21" font-weight="600" fill="#18392f">5  WorkspaceService</ns0:text>
+    <ns0:text x="62" y="619" font-size="17" font-weight="400" fill="#51655b">workspace.service.ts</ns0:text>
+    <ns0:text x="62" y="645" font-size="17" font-weight="400" fill="#51655b">按 creatorId 过滤，事务处理关联</ns0:text>
+    <ns0:text x="62" y="671" font-size="17" font-weight="400" fill="#51655b">getRepository(RoleSchema).save / update</ns0:text>
+    <ns0:rect x="570" y="550" width="430" height="150" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="586" font-size="21" font-weight="600" fill="#18392f">6  PostgreSQL</ns0:text>
+    <ns0:text x="592" y="619" font-size="17" font-weight="400" fill="#51655b">roles.instructions 持久保存</ns0:text>
+    <ns0:text x="592" y="645" font-size="17" font-weight="400" fill="#51655b">project_roles 保存项目关联</ns0:text>
+    <ns0:text x="592" y="671" font-size="17" font-weight="400" fill="#51655b">overview() 读取并组装 DTO</ns0:text>
+    <ns0:path d="M 470 625 H 570" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:text x="40" y="768" font-size="18" font-weight="400" fill="#51655b">保存成功说明业务字段已写入；当前不会自动创建 Matrix 助手或注入聊天执行。</ns0:text>
+  </ns0:g>
+</ns0:svg>

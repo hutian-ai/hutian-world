@@ -1,0 +1,64 @@
+<ns0:svg xmlns:ns0="http://www.w3.org/2000/svg" width="1040" height="1100" viewBox="0 0 1040 1100" role="img" aria-labelledby="title desc">
+  <ns0:title id="title">聊天执行的函数级调用链</ns0:title>
+  <ns0:desc id="desc">onNew 先 postConversation 写消息，再 askConversation 校验和检索，经 launchHostRequest 与 runHostRequest 调用 Dock execute，结果回 Matrix，页面 refreshConversation 获取。</ns0:desc>
+  <ns0:defs>
+    <ns0:marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#9eafa2" />
+    </ns0:marker>
+    <ns0:marker id="pending" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#a35c20" />
+    </ns0:marker>
+  </ns0:defs>
+  <ns0:rect width="1040" height="1100" fill="#f4f7f1" />
+  <ns0:g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <ns0:text x="40" y="45" font-size="24" font-weight="600" fill="#18392f">第二条代码链：消息保存、执行、回帖分开</ns0:text>
+    <ns0:rect x="40" y="90" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="126" font-size="21" font-weight="600" fill="#18392f">1  onNew · Client</ns0:text>
+    <ns0:text x="62" y="159" font-size="16" font-weight="400" fill="#51655b">communications.tsx:482</ns0:text>
+    <ns0:text x="62" y="185" font-size="16" font-weight="400" fill="#51655b">组装 text / transactionId</ns0:text>
+    <ns0:text x="62" y="211" font-size="16" font-weight="400" fill="#51655b">选择 assistant + Runtime</ns0:text>
+    <ns0:rect x="570" y="90" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="126" font-size="21" font-weight="600" fill="#18392f">2  postConversation · Next</ns0:text>
+    <ns0:text x="592" y="159" font-size="16" font-weight="400" fill="#51655b">communication-actions.ts:72</ns0:text>
+    <ns0:text x="592" y="185" font-size="16" font-weight="400" fill="#51655b">POST 3310 /api/messages</ns0:text>
+    <ns0:text x="592" y="211" font-size="16" font-weight="400" fill="#51655b">返回已保存消息 eventId</ns0:text>
+    <ns0:rect x="570" y="340" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="376" font-size="21" font-weight="600" fill="#18392f">3  askConversation · Next</ns0:text>
+    <ns0:text x="592" y="409" font-size="16" font-weight="400" fill="#51655b">communication-actions.ts:92</ns0:text>
+    <ns0:text x="592" y="435" font-size="16" font-weight="400" fill="#51655b">验证成员 / Runtime，prepareReferences</ns0:text>
+    <ns0:text x="592" y="461" font-size="16" font-weight="400" fill="#51655b">POST /api/agent + context</ns0:text>
+    <ns0:rect x="40" y="340" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="376" font-size="21" font-weight="600" fill="#18392f">4  launchHostRequest</ns0:text>
+    <ns0:text x="62" y="409" font-size="16" font-weight="400" fill="#51655b">host-worker.ts:43</ns0:text>
+    <ns0:text x="62" y="435" font-size="16" font-weight="400" fill="#51655b">保存 operationId，启动独立 worker</ns0:text>
+    <ns0:text x="62" y="461" font-size="16" font-weight="400" fill="#51655b">全局执行锁：当前串行处理</ns0:text>
+    <ns0:rect x="40" y="590" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="626" font-size="21" font-weight="600" fill="#18392f">5  runHostRequest</ns0:text>
+    <ns0:text x="62" y="659" font-size="16" font-weight="400" fill="#51655b">dock-host.ts:71</ns0:text>
+    <ns0:text x="62" y="685" font-size="16" font-weight="400" fill="#51655b">生成 / 复用 job、原提示、连接与回执</ns0:text>
+    <ns0:text x="62" y="711" font-size="16" font-weight="400" fill="#51655b">新请求 run；原请求 status</ns0:text>
+    <ns0:rect x="570" y="590" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="626" font-size="21" font-weight="600" fill="#18392f">6  Dock execute → Harness</ns0:text>
+    <ns0:text x="592" y="659" font-size="16" font-weight="400" fill="#51655b">nodeId + provider + runId</ns0:text>
+    <ns0:text x="592" y="685" font-size="16" font-weight="400" fill="#51655b">设备 prepare / execute</ns0:text>
+    <ns0:text x="592" y="711" font-size="16" font-weight="400" fill="#51655b">完成响应 → run.stdout.json</ns0:text>
+    <ns0:rect x="570" y="840" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="592" y="876" font-size="21" font-weight="600" fill="#18392f">7  sendMessage → Matrix</ns0:text>
+    <ns0:text x="592" y="909" font-size="16" font-weight="400" fill="#51655b">reply.json → 原 eventId 的引用回复</ns0:text>
+    <ns0:text x="592" y="935" font-size="16" font-weight="400" fill="#51655b">回帖关联写回 job.replyEventId</ns0:text>
+    <ns0:text x="592" y="961" font-size="16" font-weight="400" fill="#51655b">执行完成与交付完成分开</ns0:text>
+    <ns0:rect x="40" y="840" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="876" font-size="21" font-weight="600" fill="#18392f">8  refreshConversation</ns0:text>
+    <ns0:text x="62" y="909" font-size="16" font-weight="400" fill="#51655b">轮询 GET /api/state?roomId=…</ns0:text>
+    <ns0:text x="62" y="935" font-size="16" font-weight="400" fill="#51655b">消息 → ThreadMessageLike</ns0:text>
+    <ns0:text x="62" y="961" font-size="16" font-weight="400" fill="#51655b">UI 展示文本与 jobs 状态</ns0:text>
+    <ns0:path d="M 470 170 H 570" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 785 250 V 340" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 570 420 H 470" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 255 500 V 590" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 470 670 H 570" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 785 750 V 840" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 570 920 H 470" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:text x="40" y="1055" font-size="18" font-weight="600" fill="#a35c20">当前 context 没有 roleId / instructions；业务成员人设尚未进入这条执行链。</ns0:text>
+  </ns0:g>
+</ns0:svg>

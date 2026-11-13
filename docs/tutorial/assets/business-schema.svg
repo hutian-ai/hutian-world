@@ -1,0 +1,50 @@
+<ns0:svg xmlns:ns0="http://www.w3.org/2000/svg" width="1040" height="865" viewBox="0 0 1040 865" role="img" aria-labelledby="title desc">
+  <ns0:title id="title">hutian_world 四张业务表的关系</ns0:title>
+  <ns0:desc id="desc">creators 分别拥有 roles 和 projects；project_roles 以 project_id 与 role_id 为复合主键，连接项目和持续角色。</ns0:desc>
+  <ns0:defs>
+    <ns0:marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#9eafa2" />
+    </ns0:marker>
+    <ns0:marker id="pending" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <ns0:path d="M 0 0 L 10 5 L 0 10 z" fill="#a35c20" />
+    </ns0:marker>
+  </ns0:defs>
+  <ns0:rect width="1040" height="865" fill="#f4f7f1" />
+  <ns0:g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <ns0:text x="40" y="45" font-size="24" font-weight="600" fill="#18392f">业务表：EntitySchema 描述映射，migration 创建约束</ns0:text>
+    <ns0:rect x="380" y="80" width="280" height="145" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="402" y="116" font-size="21" font-weight="600" fill="#18392f">creators</ns0:text>
+    <ns0:text x="402" y="149" font-size="17" font-weight="400" fill="#51655b">id: uuid PK</ns0:text>
+    <ns0:text x="402" y="175" font-size="17" font-weight="400" fill="#51655b">display_name: text</ns0:text>
+    <ns0:text x="402" y="201" font-size="17" font-weight="400" fill="#51655b">created_at: timestamptz</ns0:text>
+    <ns0:path d="M 420 225 V 260 H 240 V 310" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 620 225 V 260 H 800 V 310" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:text x="255" y="288" font-size="17" font-weight="400" fill="#166747">1 → N</ns0:text>
+    <ns0:text x="730" y="288" font-size="17" font-weight="400" fill="#166747">1 → N</ns0:text>
+    <ns0:rect x="40" y="310" width="400" height="285" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="62" y="346" font-size="21" font-weight="600" fill="#18392f">roles</ns0:text>
+    <ns0:text x="62" y="379" font-size="17" font-weight="400" fill="#51655b">id: uuid PK</ns0:text>
+    <ns0:text x="62" y="405" font-size="17" font-weight="400" fill="#51655b">creator_id: uuid FK → creators</ns0:text>
+    <ns0:text x="62" y="431" font-size="17" font-weight="400" fill="#51655b">name: varchar(80)</ns0:text>
+    <ns0:text x="62" y="457" font-size="17" font-weight="400" fill="#51655b">description: varchar(240)</ns0:text>
+    <ns0:text x="62" y="483" font-size="17" font-weight="400" fill="#51655b">instructions: text</ns0:text>
+    <ns0:text x="62" y="509" font-size="17" font-weight="400" fill="#51655b">created_at / updated_at: timestamptz</ns0:text>
+    <ns0:rect x="600" y="310" width="400" height="255" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="622" y="346" font-size="21" font-weight="600" fill="#18392f">projects</ns0:text>
+    <ns0:text x="622" y="379" font-size="17" font-weight="400" fill="#51655b">id: uuid PK</ns0:text>
+    <ns0:text x="622" y="405" font-size="17" font-weight="400" fill="#51655b">creator_id: uuid FK → creators</ns0:text>
+    <ns0:text x="622" y="431" font-size="17" font-weight="400" fill="#51655b">name: varchar(80)</ns0:text>
+    <ns0:text x="622" y="457" font-size="17" font-weight="400" fill="#51655b">goal: text</ns0:text>
+    <ns0:text x="622" y="483" font-size="17" font-weight="400" fill="#51655b">created_at / updated_at: timestamptz</ns0:text>
+    <ns0:rect x="365" y="660" width="350" height="140" rx="14" fill="#ffffff" stroke="#d4dfd3" />
+    <ns0:text x="387" y="696" font-size="21" font-weight="600" fill="#18392f">project_roles</ns0:text>
+    <ns0:text x="387" y="729" font-size="16" font-weight="400" fill="#51655b">project_id: uuid FK → projects</ns0:text>
+    <ns0:text x="387" y="755" font-size="16" font-weight="400" fill="#51655b">role_id: uuid FK → roles</ns0:text>
+    <ns0:text x="387" y="781" font-size="16" font-weight="400" fill="#51655b">PRIMARY KEY (project_id, role_id)</ns0:text>
+    <ns0:path d="M 240 595 V 730 H 365" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:path d="M 800 565 V 730 H 715" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
+    <ns0:text x="245" y="640" font-size="15" font-weight="400" fill="#51655b">一个角色可在多个项目</ns0:text>
+    <ns0:text x="755" y="640" font-size="15" font-weight="400" fill="#51655b">一个项目可有多个角色</ns0:text>
+    <ns0:text x="40" y="837" font-size="18" font-weight="400" fill="#51655b">返回值 Role.projectIds / Project.roleIds 由 service 查询关联表组装。</ns0:text>
+  </ns0:g>
+</ns0:svg>
