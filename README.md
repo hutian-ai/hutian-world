@@ -27,6 +27,8 @@ pnpm install
 pnpm setup:local
 pnpm db:migrate
 pnpm dev
+# Once the API is running, in another terminal:
+pnpm access:setup
 ```
 
 Open **http://127.0.0.1:3340**. The API listens on **127.0.0.1:3341**. Both bind only to loopback. Stop the application with Ctrl+C; the database retains its data.
@@ -67,9 +69,9 @@ Use your own PostgreSQL database and a dedicated application role that owns it. 
 1. Install dependencies with `pnpm install`.
 2. Create a private `.local/` directory; copy `.env.example` to `.local/app.env`.
 3. Set the database connection, a random API token of at least 40 characters, and a stable creator UUID. For example, generate the token with `openssl rand -hex 32` and the UUID with `node -e 'console.log(crypto.randomUUID())'`. Keep them in your private file, then `chmod 700 .local; chmod 600 .local/app.env`.
-4. Run `pnpm db:migrate` and `pnpm dev`.
+4. Run `pnpm db:migrate` and `pnpm dev`; once the API is running, use another terminal to run `pnpm access:setup`.
 
-This first milestone is for trusted local use. The configured creator ID selects the local owner's records; it is not a browser login or a multi-user session. The API token stays in the Next.js server, outside client bundles. Configure real user authentication and deployment boundaries before opening the application to other users.
+This first milestone is for trusted local use. The configured creator ID is used only by the local identity adapter. It resolves an application user, default data space and active membership; this is not a browser login or a multi-user session. The API token stays in the Next.js server, outside client bundles. Configure real user authentication and deployment boundaries before opening the application to other users.
 
 ## Layout
 
@@ -82,10 +84,14 @@ packages/contracts  Internal Zod inputs and response types
 
 All application code stays in this repository. Internal packages are not separate open-source products. Database changes use explicit TypeORM migrations; application startup does not synchronize or migrate schemas automatically.
 
-The database contains creators, projects, roles, a many-to-many project-role relation, role-to-chat identity mappings, and optional role Runtime defaults. Runtime defaults have their own revision and do not change the persona definition version. Changing project membership or execution Runtime preserves the role and its communication identity; existing runs retain their original target and receipt. Multi-user and role-scoped resource authorization, native session controls and project workflows remain incomplete. The conversation page currently reads the latest 100 text messages; the host uses a bounded 30-message context, not an unlimited transcript or native session migration.
+The database now also contains application users, default data spaces, memberships and module connection ownership. Business reads and writes use server-resolved scope; original role creators remain distinct from workspace membership. The database contains creators, projects, roles, a many-to-many project-role relation, role-to-chat identity mappings, and optional role Runtime defaults. Runtime defaults have their own revision and do not change the persona definition version. Changing project membership or execution Runtime preserves the role and its communication identity; existing runs retain their original target and receipt. Multi-user and role-scoped resource authorization, native session controls and project workflows remain incomplete. The conversation page currently reads the latest 100 text messages; the host uses a bounded 30-message context, not an unlimited transcript or native session migration.
 
 Start with the [developer handoff guide](docs/tutorial/TECHNICAL.md) ([offline reading edition](docs/tutorial/index.html)) for startup/debugging commands, the database schema, request paths and host receipts. See the [resource scope delivery](docs/stage-4.md), [role-chat delivery](docs/stage-3.md), [core-module baseline](docs/stage-2.md), [MVP plan](docs/core-mvp-2026-11-13.md), [UI research](docs/ui-research-2026-11-13.md), and [technology choices](docs/technology.md). First-stage history remains in [stage 1](docs/stage-1.md). No public repository, npm package, Release or X post has been published by this implementation.
 
 2026-11-14 定时任务交互更新：恢复旧 hutian 的周 / 月 / 日程日历，列表支持搜索、成员 / 状态筛选、分组和行尾菜单；标题打开侧栏预览，创建编辑使用独立页面。删除停止后续触发并保留运行历史。可直接查看 [11 月 16 日当周安排](http://127.0.0.1:3340/schedules?date=2026-11-16&future=all)，实际使用核对见 [第 5 段](docs/stage-5.md)。
 
 日历默认按任务 ID 与北京时间日期合并同日摘要，周 / 月每格最多三条，其他从“更多”查看。点击摘要可核对当天全部触发与实际状态，各次触发在详情内查看；适用于所有任务，不按股票或标题分类，不改变后台周期。
+
+## Identity and data scope foundation
+
+[Stage 6](docs/stage-6.md) adds server-resolved request identity, explicit workspace / owner fields and composite foreign keys, plus persisted execution authority for scheduled work. Existing local connections are explicitly bound to one user and space in private `.local/access-bindings.json`; missing or mismatched bindings fail instead of using another default connection. Run `pnpm access:setup` after migrating and starting the API. It preserves upstream credentials and existing role / room / resource identities. This is still a single-owner local application: there is no login, invitation, tenant switcher or completed multi-user authorization product.

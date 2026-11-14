@@ -9,6 +9,7 @@ import {
 } from "@harness-dock/client";
 import { z } from "zod";
 import { runtimeModels } from "./runtime-models";
+import { requireLocalConnection } from "./access-bindings";
 
 const clientFile = resolve(process.cwd(), "../../.local/dock-client.json");
 export const maxDockCredentialBytes = 16_384;
@@ -95,6 +96,7 @@ function isMissing(error: unknown) {
 }
 
 async function savedOptions() {
+  await requireLocalConnection("dock");
   try { return await loadClientOptions(clientFile); }
   catch (error) {
     if (!isMissing(error)) throw error;
@@ -155,6 +157,7 @@ export function getDockDevice(nodeId: string) {
 }
 
 export async function saveDockCredential(json: string) {
+  await requireLocalConnection("dock");
   let raw: unknown;
   try { raw = JSON.parse(json); }
   catch { throw new ConnectionInputError("文件不是有效的 JSON，请选择 Dock Server 导出的应用凭据。"); }

@@ -32,7 +32,7 @@ export async function resolveResourceScope(input?: ResourceScope) {
     label = `${state.room.name} · 会话共享`;
     description = "供本会话中被明确调用的成员使用。保存前请确认内容可向会话成员共享。";
   }
-  const key = "hw-" + createHash("sha256").update(JSON.stringify([workspace.creator.id, scope])).digest("hex").slice(0, 40);
+  const key = "hw-" + createHash("sha256").update(JSON.stringify([workspace.access.resourceNamespace, scope])).digest("hex").slice(0, 40);
   return { ...scope, key, label, description };
 }
 export async function resourceScopeOptions() {

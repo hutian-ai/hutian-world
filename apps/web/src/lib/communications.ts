@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { Role } from "@hutian-world/contracts";
 import { getWorkspace } from "./api";
+import { requireLocalConnection } from "./access-bindings";
 
 const agent = z.object({
   id: z.string(),
@@ -63,6 +64,7 @@ export type Conversation = z.infer<typeof conversationSchema>;
 export type RoomKind = z.infer<typeof room>["kind"];
 
 export async function communicationRequest(path: string, body?: unknown) {
+  await requireLocalConnection("matrix");
   const origin = new URL(
     process.env.HUTIAN_CHAT_URL ?? "http://127.0.0.1:3310",
   );

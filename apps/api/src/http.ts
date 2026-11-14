@@ -9,15 +9,20 @@ import { ZodError } from "zod";
 import { projectInput, roleInput, createRoleInput, roleChatIdentityInput, roleRuntimeBindingInput } from "@hutian-world/contracts";
 import type { Environment } from "./environment.js";
 import { WorkspaceService } from "./workspace.service.js";
+import { AccessContexts } from "./access-context.js";
+import type { AccessContext } from "@hutian-world/contracts";
 
 @Injectable()
 export class LocalApiGuard implements CanActivate {
-  constructor(@Inject("ENV") private readonly env: Environment) {}
-  canActivate(context: ExecutionContext) {
-    const req = context.switchToHttp().getRequest<FastifyRequest>();
+  constructor(@Inject("ENV") private readonly env: Environment, @Inject(AccessContexts) private readonly contexts: AccessContexts) {}
+  async canActivate(context: ExecutionContext) {
+    const req = context.switchToHttp().getRequest<FastifyRequest & { hutianAccess?: AccessContext }>();
     const supplied = Buffer.from(req.headers.authorization ?? "");
     const expected = Buffer.from("Bearer " + this.env.HUTIAN_API_TOKEN);
     if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new UnauthorizedException("需要有效的应用凭据");
+    if (req.headers["x-hutian-user-id"] || req.headers["x-hutian-workspace-id"] || req.headers["x-hutian-creator-id"])
+      throw new UnauthorizedException("本机模式不接受调用方指定身份或空间");
+    req.hutianAccess = await this.contexts.local();
     return true;
   }
 }
@@ -34,7 +39,8 @@ export class PublicErrorFilter implements ExceptionFilter {
 }
 @Controller("v1")
 export class WorkspaceController {
-  constructor(@Inject(WorkspaceService) private readonly service: WorkspaceService) {}
+  constructor(@Inject(WorkspaceService) private readonly service: WorkspaceService, @Inject(AccessContexts) private readonly contexts: AccessContexts) {}
+  @Get("access") access() { return this.contexts.current(); }
   @Get("workspace") overview() { return this.service.overview(); }
   @Post("projects") createProject(@Body() body: unknown) { return this.service.createProject(projectInput.parse(body)); }
   @Patch("projects/:id") updateProject(@Param("id", new ParseUUIDPipe()) id: string, @Body() body: unknown) { return this.service.updateProject(id, projectInput.parse(body)); }

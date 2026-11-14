@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { mkdir, readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
+import { requireLocalConnection } from "./access-bindings";
 
 const run = promisify(execFile);
 const local = resolve(process.cwd(), "../../.local");
@@ -15,6 +16,7 @@ async function privateJson(path: string) {
   return JSON.parse(await readFile(path, "utf8"));
 }
 export async function scopedMemoryClient(key: string, create: boolean) {
+  await requireLocalConnection("resources");
   if (!/^hw-[a-f0-9]{40}$/.test(key)) throw new Error("记忆范围无效。");
   const directory = resolve(local, "resource-clients");
   const path = resolve(directory, `${key}.json`);

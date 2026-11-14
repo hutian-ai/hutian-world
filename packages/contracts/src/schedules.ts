@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Temporal } from "temporal-polyfill";
+import type { RecordAuthority, RunAuthority } from "./access.js";
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const time = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 export const scheduleRule = z.object({
@@ -32,7 +33,7 @@ export const scheduleInput = z.object({
   sourceAutomationId: z.string().regex(/^[a-z0-9-]{1,80}$/).nullable().default(null),
 }).strict();
 export type ScheduleInput = z.infer<typeof scheduleInput>;
-export interface ScheduledTask extends ScheduleInput { status: "active" | "paused" | "ended" | "deleted"; revision: number; nextStartAt: string | null; deletedAt: string | null; createdAt: string; updatedAt: string }
+export interface ScheduledTask extends ScheduleInput { authority: RecordAuthority & Omit<RunAuthority, "requestedByUserId">; status: "active" | "paused" | "ended" | "deleted"; revision: number; nextStartAt: string | null; deletedAt: string | null; createdAt: string; updatedAt: string }
 export interface ScheduleCalendarItem {
   id: string; scheduleId: string; runId: string | null; at: string; title: string;
   kind: "expected" | "run"; state: ScheduledRunState | null; roleId: string;
@@ -45,6 +46,7 @@ export const scheduleCalendarQuery = z.object({
 }).strict().refine(value => Date.parse(value.to) > Date.parse(value.from) && Date.parse(value.to) - Date.parse(value.from) <= 62 * 86400000, "请选择 62 天以内的日历范围");
 export type ScheduledRunState = "queued" | "preparing" | "running" | "blocked" | "replied" | "failed" | "unknown" | "missed" | "skipped";
 export interface ScheduledRun {
+  authority: RunAuthority;
   id: string; scheduleId: string; scheduledAt: string; manual: boolean; state: ScheduledRunState;
   snapshot: ScheduleInput; eventId: string | null; runId: string | null; replyEventId: string | null;
   error: string | null; createdAt: string; updatedAt: string;

@@ -5,8 +5,10 @@ import { z } from "zod";
 import type { ScheduledRun } from "@hutian-world/contracts";
 import { api } from "./api";
 import { communicationRequest } from "./communications";
+import { requireLocalConnection } from "./access-bindings";
 
 async function reportSource() {
+  await requireLocalConnection("reports");
   const path = resolve(process.cwd(), "../../.local/report-files.json");
   const info = await stat(path);
   if (info.mode & 0o077 || !info.isFile()) throw new Error("报告附件连接未准备。");

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { z } from "zod";
 import { resolveResourceScope, scopeUrl, type ResourceScope } from "./resource-scopes";
 import { scopedMemoryClient } from "./resource-provisioning";
+import { requireLocalConnection } from "./access-bindings";
 
 const local = resolve(process.cwd(), "../../.local");
 const uuid = z.uuid();
@@ -35,6 +36,7 @@ export type KnowledgeDocument = {
   upstreamIds?: string[];
 };
 async function resourceConfig<T>(name: string, schema: z.ZodType<T>): Promise<T> {
+  await requireLocalConnection("resources");
   const file = resolve(local, name);
   const info = await stat(file);
   if (!info.isFile() || info.size > 32768 || info.mode & 0o077)

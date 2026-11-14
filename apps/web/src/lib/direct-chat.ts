@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { getWorkspace } from "./api";
+import { requireLocalConnection } from "./access-bindings";
 
 const peerSchema = z.object({
   id: z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
@@ -34,6 +35,7 @@ function localOrigin(value: string) {
 }
 
 async function request(origin: string, path: string, body?: object) {
+  await requireLocalConnection("matrix");
   try {
     return await fetch(`${origin}${path}`, {
       cache: "no-store", redirect: "error", signal: AbortSignal.timeout(12_000),
@@ -59,14 +61,14 @@ async function peers() {
   return directory.agents;
 }
 
-function roomTransaction(creatorId: string, userId: string) {
-  const hash = createHash("sha256").update(`hutian-world:direct:${creatorId}:${userId}`).digest("hex");
+function roomTransaction(namespace: string, userId: string) {
+  const hash = createHash("sha256").update(`hutian-world:direct:${namespace}:${userId}`).digest("hex");
   return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
 }
 
-async function resolveRoom(creatorId: string, peer: ChatPeer) {
+async function resolveRoom(namespace: string, peer: ChatPeer) {
   const serverName = peer.userId.slice(peer.userId.indexOf(":") + 1);
-  const alias = `#web-${roomTransaction(creatorId, peer.userId)}:${serverName}`;
+  const alias = `#web-${roomTransaction(namespace, peer.userId)}:${serverName}`;
   const origin = localOrigin(process.env.HUTIAN_MATRIX_URL ?? "http://127.0.0.1:8008");
   const result = await request(origin, `/_matrix/client/v3/directory/room/${encodeURIComponent(alias)}`);
   if (result.status === 404) return null;
@@ -84,8 +86,8 @@ async function readDirectRoom(roomId: string, peer: ChatPeer) {
 }
 
 export async function getDirectChat(selectedId?: string) {
-  const [{ creator }, agents] = await Promise.all([getWorkspace(), peers()]);
-  const rooms = await Promise.all(agents.map(async (peer) => ({ peer, roomId: await resolveRoom(creator.id, peer) })));
+  const [{ access }, agents] = await Promise.all([getWorkspace(), peers()]);
+  const rooms = await Promise.all(agents.map(async (peer) => ({ peer, roomId: await resolveRoom(access.resourceNamespace, peer) })));
   const selected = rooms.find(({ peer }) => peer.id === selectedId);
   const directory = rooms.map(({ peer, roomId }) => ({ peer, exists: roomId !== null }));
   if (!selected?.roomId) return { directory, selected: undefined, messages: [], error: selectedId ? "该私聊尚未建立或已不可用。" : undefined };
@@ -97,15 +99,15 @@ export async function getDirectChat(selectedId?: string) {
 }
 
 async function findPeer(peerId: string) {
-  const [{ creator }, agents] = await Promise.all([getWorkspace(), peers()]);
+  const [{ access }, agents] = await Promise.all([getWorkspace(), peers()]);
   const peer = agents.find((agent) => agent.id === peerId);
   if (!peer) throw new ChatError("这位聊天对象已不可用。");
-  return { creatorId: creator.id, peer };
+  return { namespace: access.resourceNamespace, peer };
 }
 
 export async function openDirectChat(peerId: string) {
-  const { creatorId, peer } = await findPeer(peerId);
-  const existing = await resolveRoom(creatorId, peer);
+  const { namespace, peer } = await findPeer(peerId);
+  const existing = await resolveRoom(namespace, peer);
   if (existing) {
     try {
       await readDirectRoom(existing, peer);
@@ -117,7 +119,7 @@ export async function openDirectChat(peerId: string) {
       if (members.length !== 1 || members[0].kind !== "human") throw error;
     }
   }
-  const transactionId = roomTransaction(creatorId, peer.userId);
+  const transactionId = roomTransaction(namespace, peer.userId);
   const result = roomSchema.parse(await chatRequest("/api/rooms", {
     name: `私聊 · ${peer.name}`.slice(0, 80), transactionId, agentIds: [peer.id], kind: 'direct',
   }));
@@ -125,8 +127,8 @@ export async function openDirectChat(peerId: string) {
 }
 
 export async function sendDirectMessage(peerId: string, text: string, transactionId: string) {
-  const { creatorId, peer } = await findPeer(peerId);
-  const roomId = await resolveRoom(creatorId, peer);
+  const { namespace, peer } = await findPeer(peerId);
+  const roomId = await resolveRoom(namespace, peer);
   if (!roomId) throw new ChatError("请先建立私聊会话。");
   await readDirectRoom(roomId, peer);
   const receipt = await chatRequest("/api/messages", { roomId, text, transactionId });

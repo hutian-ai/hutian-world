@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AccessContext } from "./access.js";
 
 const name = z.string().trim().min(1, "请填写名称").max(80, "名称最多 80 个字符");
 export const projectInput = z.object({
@@ -55,9 +56,11 @@ export interface Role {
   runtimeBinding: RoleRuntimeBinding | null;
 }
 export interface Workspace {
+  access: AccessContext;
   creator: { id: string; displayName: string };
   projects: Project[];
   roles: Role[];
 }
 
 export * from "./schedules.js";
+export * from "./access.js";

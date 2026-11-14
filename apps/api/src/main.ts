@@ -3,11 +3,12 @@ import { Module, Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter } from "@nestjs/platform-fastify";
 import type { NestFastifyApplication } from "@nestjs/platform-fastify";
-import { APP_GUARD } from "@nestjs/core";
+import { APP_GUARD, APP_INTERCEPTOR } from "@nestjs/core";
 import { DataSource } from "typeorm";
 import { environment } from "./environment.js";
 import { dataSource } from "./database/source.js";
-import { CreatorSchema } from "./database/schema.js";
+import { ensureLocalIdentity } from "./database/local-identity.js";
+import { AccessContexts, AccessContextInterceptor } from "./access-context.js";
 import { WorkspaceService } from "./workspace.service.js";
 import { LocalApiGuard, PublicErrorFilter, WorkspaceController } from "./http.js";
 
@@ -21,10 +22,10 @@ try {
   connection = db;
   await db.initialize();
   if (await db.showMigrations()) { await db.destroy(); throw new Error("数据库结构尚未准备，请先运行 pnpm db:migrate。"); }
-  await db.getRepository(CreatorSchema).createQueryBuilder().insert().values({ id: env.HUTIAN_CREATOR_ID, displayName: "我的工作台" }).orIgnore().execute();
+  await db.transaction(manager => ensureLocalIdentity(manager, env.HUTIAN_CREATOR_ID));
   @Module({
     controllers: [WorkspaceController, SchedulesController],
-    providers: [{ provide: "DB_LIFECYCLE", useValue: { async onApplicationShutdown() { if (db.isInitialized) await db.destroy(); } } }, WorkspaceService, SchedulesService, { provide: DataSource, useValue: db }, { provide: "ENV", useValue: env }, { provide: APP_GUARD, useClass: LocalApiGuard }],
+    providers: [{ provide: "DB_LIFECYCLE", useValue: { async onApplicationShutdown() { if (db.isInitialized) await db.destroy(); } } }, WorkspaceService, SchedulesService, AccessContexts, { provide: DataSource, useValue: db }, { provide: "ENV", useValue: env }, { provide: APP_GUARD, useClass: LocalApiGuard }, { provide: APP_INTERCEPTOR, useClass: AccessContextInterceptor }],
   })
   class AppModule {}
   const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ bodyLimit: 262144 }), { logger: ["error", "warn"] });

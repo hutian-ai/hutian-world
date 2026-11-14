@@ -8,7 +8,8 @@
     "start": "pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web start",
     "resources:setup": "node scripts/setup-resource-scopes.mjs",
     "setup:local": "node scripts/setup-local.mjs",
-    "db:migrate": "pnpm --filter @hutian-world/contracts build && pnpm --filter @hutian-world/api db:migrate"
+    "db:migrate": "pnpm --filter @hutian-world/contracts build && pnpm --filter @hutian-world/api db:migrate",
+    "access:setup": "pnpm --filter @hutian-world/contracts build && node scripts/setup-access-bindings.mjs"
   },
   "devDependencies": {"pg": "8.22.0", "typescript": "6.0.3", "@types/node": "24.13.3"}
 }

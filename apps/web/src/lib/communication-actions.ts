@@ -66,10 +66,9 @@ export async function createCommunication(input: unknown) {
     if (value.agentIds.some((id) => !directory.agents.some((a) => a.id === id)))
       throw new Error("所选助手已不可用。");
     if (value.kind === "direct") {
-      const { creator } = await getWorkspace();
       const peer = directory.agents.find((a) => a.id === value.agentIds[0])!;
       const hash = createHash("sha256")
-        .update(`hutian-world:direct:${creator.id}:${peer.userId}`)
+        .update(`hutian-world:direct:${workspace.access.resourceNamespace}:${peer.userId}`)
         .digest("hex");
       value.transactionId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
     }

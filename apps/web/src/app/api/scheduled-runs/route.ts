@@ -4,6 +4,7 @@ import type { ScheduledRun } from "@hutian-world/contracts";
 import { api, getWorkspace } from "@/lib/api";
 import { readConversation } from "@/lib/communications";
 import { askConversation, postConversation } from "@/lib/communication-actions";
+import { getAccess, requireLocalConnection } from "@/lib/access-bindings";
 export const runtime = "nodejs";
 export async function POST(request: Request) {
   const actual = Buffer.from(request.headers.get("authorization") ?? "");
@@ -11,11 +12,18 @@ export async function POST(request: Request) {
   const expected = Buffer.from(token ? `Bearer ${token}` : "");
   if (!token || actual.length !== expected.length || !timingSafeEqual(actual, expected)) return new Response(null, { status: 401 });
   try {
-    const { id } = z.object({ id: z.uuid() }).strict().parse(await request.json());
+    const { id, workspaceId, runAsUserId } = z.object({ id: z.uuid(), workspaceId: z.uuid(), runAsUserId: z.uuid() }).strict().parse(await request.json());
     let run = await api<ScheduledRun>(`/v1/scheduled-runs/${id}`);
     const task = run.snapshot;
     const result = (state: ScheduledRun["state"], error: string | null = null, runId: string | null = run.runId, replyEventId: string | null = run.replyEventId) => Response.json({ state, error, runId, replyEventId });
+    const access = await getAccess();
+    if (workspaceId !== run.authority.workspaceId || runAsUserId !== run.authority.runAsUserId ||
+      workspaceId !== access.workspaceId || runAsUserId !== access.userId || run.authority.requestedByUserId !== access.userId ||
+      run.authority.communicationConnectionId !== access.connections.matrix || run.authority.runtimeConnectionId !== access.connections.dock)
+      return result("blocked", "原运行身份或连接范围与当前入口不一致，未使用默认身份代发");
     if (["replied", "failed", "missed", "skipped"].includes(run.state)) return result(run.state);
+    await requireLocalConnection("matrix");
+    await requireLocalConnection("dock");
     const role = (await getWorkspace()).roles.find(r => r.id === task.roleId);
     if (!role?.chatIdentity) return result("blocked", "成员的通信身份尚未准备，请从成员页打开私聊或邀请成员后重试");
     let state = await readConversation(task.roomId);
