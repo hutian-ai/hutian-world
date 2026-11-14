@@ -11,6 +11,9 @@ import { CreatorSchema } from "./database/schema.js";
 import { WorkspaceService } from "./workspace.service.js";
 import { LocalApiGuard, PublicErrorFilter, WorkspaceController } from "./http.js";
 
+import { SchedulesService } from "./schedules.service.js";
+import { SchedulesController } from "./schedules.controller.js";
+
 let connection: DataSource | undefined;
 try {
   const env = await environment();
@@ -20,11 +23,11 @@ try {
   if (await db.showMigrations()) { await db.destroy(); throw new Error("数据库结构尚未准备，请先运行 pnpm db:migrate。"); }
   await db.getRepository(CreatorSchema).createQueryBuilder().insert().values({ id: env.HUTIAN_CREATOR_ID, displayName: "我的工作台" }).orIgnore().execute();
   @Module({
-    controllers: [WorkspaceController],
-    providers: [{ provide: "DB_LIFECYCLE", useValue: { async onApplicationShutdown() { if (db.isInitialized) await db.destroy(); } } }, WorkspaceService, { provide: DataSource, useValue: db }, { provide: "ENV", useValue: env }, { provide: APP_GUARD, useClass: LocalApiGuard }],
+    controllers: [WorkspaceController, SchedulesController],
+    providers: [{ provide: "DB_LIFECYCLE", useValue: { async onApplicationShutdown() { if (db.isInitialized) await db.destroy(); } } }, WorkspaceService, SchedulesService, { provide: DataSource, useValue: db }, { provide: "ENV", useValue: env }, { provide: APP_GUARD, useClass: LocalApiGuard }],
   })
   class AppModule {}
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ bodyLimit: 65536 }), { logger: ["error", "warn"] });
+  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ bodyLimit: 262144 }), { logger: ["error", "warn"] });
   app.useGlobalFilters(new PublicErrorFilter());
   app.enableShutdownHooks();
   // A health check returns no user data. All business endpoints use the guard.

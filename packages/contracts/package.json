@@ -7,6 +7,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./schedule-time": {
+      "types": "./dist/schedule-time.d.ts",
+      "import": "./dist/schedule-time.js"
     }
   },
   "scripts": {
@@ -14,6 +18,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "rrule": "2.8.1",
+    "temporal-polyfill": "1.0.5",
     "zod": "4.4.3"
   }
 }

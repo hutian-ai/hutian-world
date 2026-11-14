@@ -5,11 +5,13 @@ import { ProjectsAndRoles1793892000000 } from "./initial.js";
 import { RoleChatIdentity1794531600000 } from "./role-chat.js";
 import { RoleRuntimeBinding1794535200000 } from "./role-runtime.js";
 
+import { ScheduledTasks1794690000000, ScheduledNoUpdate1794690001000, ScheduledTaskDeletion1794690002000 } from "./schedules.js";
+
 export function dataSource(url: string) {
   return new DataSource({
     type: "postgres", url, applicationName: "hutian-world", poolSize: 5,
     synchronize: false, migrationsRun: false, migrationsTransactionMode: "all",
-    migrationsTableName: "hutian_world_migrations", migrations: [ProjectsAndRoles1793892000000, RoleChatIdentity1794531600000, RoleRuntimeBinding1794535200000],
+    migrationsTableName: "hutian_world_migrations", migrations: [ProjectsAndRoles1793892000000, RoleChatIdentity1794531600000, RoleRuntimeBinding1794535200000, ScheduledTasks1794690000000, ScheduledNoUpdate1794690001000, ScheduledTaskDeletion1794690002000],
     entities: [CreatorSchema, ProjectSchema, RoleSchema, MembershipSchema, RoleChatSchema, RoleRuntimeSchema], logging: false,
     invalidWhereValuesBehavior: { null: "throw", undefined: "throw" },
   });

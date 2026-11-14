@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Brain, ChevronRight, MessageCircle, ServerCog, UsersRound } from "lucide-react";
+import { BookOpen, Brain, CalendarClock, ChevronRight, MessageCircle, ServerCog, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
@@ -17,6 +17,7 @@ const navigation = [
   { href: "/members", label: "组织", icon: UsersRound },
   { href: "/knowledge", label: "知识库", icon: BookOpen },
   { href: "/memory", label: "记忆", icon: Brain },
+  { href: "/schedules", label: "定时任务", icon: CalendarClock },
   { href: "/runtimes", label: "运行环境", icon: ServerCog },
 ];
 

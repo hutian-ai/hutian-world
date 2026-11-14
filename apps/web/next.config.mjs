@@ -6,6 +6,6 @@ const config = {
   agentRules: false,
   allowedDevOrigins: ["127.0.0.1", "localhost"],
   transpilePackages: ["@hutian-world/contracts"],
-  serverExternalPackages: ["@harness-dock/client"],
+  serverExternalPackages: ["@harness-dock/client", "rrule"],
 };
 export default config;

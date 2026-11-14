@@ -119,6 +119,9 @@ export async function askConversation(input: unknown) {
         resume: z.boolean().optional(),
         useMemory: z.boolean().optional(),
         useKnowledge: z.boolean().optional(),
+        silentNoUpdate: z.boolean().optional(),
+        executionMode: z.enum(["text", "task"]).optional(),
+        timeoutMs: z.number().int().min(180000).max(3600000).optional(),
         runtimeMode: z.enum(["member", "manual"]).optional(),
         runtime: z
           .object({ nodeId: z.uuid(), provider: z.string().min(1).max(128) })
@@ -180,6 +183,9 @@ export async function askConversation(input: unknown) {
         nodeId: selectedRuntime.nodeId,
         provider: selectedRuntime.provider,
         connectionId: "workspace",
+        ...(value.silentNoUpdate === undefined ? {} : { silentNoUpdate: value.silentNoUpdate }),
+        ...(value.executionMode ? { executionMode: value.executionMode } : {}),
+        ...(value.timeoutMs ? { timeoutMs: value.timeoutMs } : {}),
       },
     });
     return { ok: true as const, references };

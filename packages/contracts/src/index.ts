@@ -59,3 +59,5 @@ export interface Workspace {
   projects: Project[];
   roles: Role[];
 }
+
+export * from "./schedules.js";
