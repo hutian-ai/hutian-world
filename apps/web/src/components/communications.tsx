@@ -357,10 +357,14 @@ export function Communications({
   const selected = directory.rooms.find((r) => r.id === selectedId);
   const joined = state?.agents.filter((a) => a.joined) ?? [];
   const memberRuntime = joined.find(a => a.id === agentId)?.runtimeBinding ?? null;
+  const selectedRole = joined.find(a => a.id === agentId)?.roleId;
+  const privateScopeAvailable = selected?.kind === "direct" && state?.members.length === 2 && Boolean(selectedRole);
+
   const observedBinding = useRef(`${initialAgentId}:${initial?.agents.find(a => a.id === initialAgentId)?.runtimeBinding?.updatedAt ?? ""}`);
   const [useMemory, setUseMemory] = useState(false);
   const [useKnowledge, setUseKnowledge] = useState(false);
   const [references, setReferences] = useState<Reference[]>([]);
+  useEffect(() => { setReferences([]); }, [agentId, selectedId]);
   const [runtimes, setRuntimes] = useState<
     { nodeId: string; provider: string; label: string }[]
   >([]);
@@ -721,7 +725,7 @@ export function Communications({
                       <DialogHeader>
                         <DialogTitle>对话成员</DialogTitle>
                         <DialogDescription>
-                          邀请成员不会自动触发执行。
+                          {selected.kind === "direct" ? "私聊保留两位参与者；多人讨论请从会话目录新建群聊。" : "邀请成员不会自动触发执行。"}
                         </DialogDescription>
                       </DialogHeader>
                       {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
@@ -737,7 +741,7 @@ export function Communications({
                         </div>
                       ))}
                       {state.agents
-                        .filter((a) => !a.joined && !a.roleId && !/^role-[\da-f]{32}$/.test(a.id))
+                        .filter((a) => selected.kind !== "direct" && !a.joined && !a.roleId && !/^role-[\da-f]{32}$/.test(a.id))
                         .map((a) => (
                           <Button
                             key={a.id}
@@ -754,7 +758,7 @@ export function Communications({
                             邀请 {a.name}
                           </Button>
                         ))}
-                      {directory.roles.filter(role => !state.agents.some(a => a.roleId === role.id && a.joined)).map(role => (
+                      {directory.roles.filter(role => selected.kind !== "direct" && !state.agents.some(a => a.roleId === role.id && a.joined)).map(role => (
                         <Button key={role.id} variant="outline" disabled={sending || active} onClick={async () => {
                           setSending(true);
                           setError("");
@@ -861,6 +865,12 @@ export function Communications({
                       ),
                       before: (
                         <div className="grid gap-2">
+                          {selectedId && <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <span>资源范围：{privateScopeAvailable ? "该角色私有 + 当前会话共享" : "仅当前会话共享"}</span>
+                            <Link className="hover:text-primary hover:underline" href={`/knowledge?${new URLSearchParams({ room: selectedId })}`}>会话资料</Link>
+                            <Link className="hover:text-primary hover:underline" href={`/memory?${new URLSearchParams({ room: selectedId })}`}>会话记忆</Link>
+                            {privateScopeAvailable && <Link className="hover:text-primary hover:underline" href={`/members/${selectedRole}?view=resources`}>角色资源</Link>}
+                          </div>}
                           {preparing && (
                             <p
                               role="status"

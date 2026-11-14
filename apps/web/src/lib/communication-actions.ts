@@ -8,6 +8,7 @@ import {
   readDirectory,
 } from "./communications";
 import { prepareReferences } from "./resources";
+import { conversationResourceScopes } from "./resource-scopes";
 import { getDockConnection, getDockDevice } from "./dock";
 import { ensureRoleAgent, roleExecutionContext } from "./role-chat";
 
@@ -133,7 +134,7 @@ export async function askConversation(input: unknown) {
     );
     if (!message) throw new Error("只能处理当前会话中你发出的消息。");
     // Reopening an existing run only observes its original context and Runtime.
-    if (value.resume) {
+    if (value.resume || state.jobs.some(job => job.eventId === value.eventId && job.agentId === value.agentId)) {
       await communicationRequest("/api/agent/resume", {
         roomId: value.roomId,
         eventId: value.eventId,
@@ -166,6 +167,7 @@ export async function askConversation(input: unknown) {
       message.text,
       Boolean(value.useMemory),
       Boolean(value.useKnowledge),
+      await conversationResourceScopes(value.roomId, role?.id),
     );
     await communicationRequest("/api/agent", {
       roomId: value.roomId,
@@ -209,6 +211,8 @@ export async function discoverChatRuntimes() {
 export async function inviteConversation(id: string, peer: string) {
   try {
     await readConversation(roomId.parse(id));
+    if ((await readDirectory()).rooms.find(room => room.id === id)?.kind === "direct")
+      throw new Error("私聊保留两位参与者；多人讨论请新建群聊，私有资料不会随之共享。");
     let target = peer;
     if (peer.startsWith("role:")) {
       const role = (await getWorkspace()).roles.find(r => r.id === z.uuid().parse(peer.slice(5)));

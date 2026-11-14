@@ -1,14 +1,6 @@
-import { ResourceWorkspace } from "@/components/resource-workspace";
-export default async function KnowledgePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ source?: string }>;
+import { ScopedResources } from "@/components/scoped-resources";
+export default async function ResourcePage({ searchParams }: {
+  searchParams: Promise<{ source?: string; role?: string; room?: string }>;
 }) {
-  const { source } = await searchParams;
-  return (
-    <ResourceWorkspace
-      kind="knowledge"
-      {...(source ? { initialSource: source } : {})}
-    />
-  );
+  return <ScopedResources kind="knowledge" search={await searchParams} />;
 }

@@ -22,6 +22,7 @@ import { roleRuntimeChoices } from "@/lib/role-runtime";
 const memberViews = [
   ["overview", "概览"],
   ["capabilities", "能力"],
+  ["resources", "资料与记忆"],
   ["settings", "设置"],
 ] as const;
 type MemberView = typeof memberViews[number][0];
@@ -136,6 +137,16 @@ export default async function MemberPage({ params, searchParams }: {
                 </Panel>
               </TabsContent>
             </Tabs>
+          )}
+          {view === "resources" && role && (
+            <div className="space-y-4">
+              <Panel title="角色私有资源" description="资料与记忆随角色保存；更换 Runtime 后仍可在私聊中使用。群聊和频道仅使用对应会话明确共享的资源。">
+                <div className="flex flex-wrap gap-3 p-5">
+                  <Button asChild variant="outline"><Link href={`/knowledge?role=${role.id}`}>管理私有资料</Link></Button>
+                  <Button asChild variant="outline"><Link href={`/memory?role=${role.id}`}>管理私有记忆</Link></Button>
+                </div>
+              </Panel>
+            </div>
           )}
           {view === "settings" && role && (
             <Tabs value={settingsSection} orientation="vertical" className="secondary-layout secondary-tabs !grid !gap-3 md:!gap-5">

@@ -31,6 +31,7 @@ import {
   readMemorySource,
   saveResource,
 } from "@/lib/resource-actions";
+import type { ResourceScope } from "@/lib/resource-scopes";
 import type { Reference } from "@/lib/resources";
 
 type Document = {
@@ -43,9 +44,13 @@ type Document = {
 export function ResourceWorkspace({
   kind,
   initialSource,
+  scope,
+  scopeLabel,
 }: {
   kind: "memory" | "knowledge";
   initialSource?: string;
+  scope: ResourceScope;
+  scopeLabel: string;
 }) {
   const isMemory = kind === "memory";
   const title = isMemory ? "记忆" : "知识库";
@@ -69,13 +74,13 @@ export function ResourceWorkspace({
     setSelected(doc);
     setContent(doc.content ?? "");
     if (isMemory) {
-      const r = await readMemorySource(doc.id);
+      const r = await readMemorySource(doc.id, scope);
       if (r.ok) setContent(String(r.data.original_text ?? "原文暂不可读取。"));
       else setError(r.error);
     }
   }
   async function load() {
-    const r = await loadResources(kind);
+    const r = await loadResources(kind, scope);
     if (r.ok) {
       const docs = r.data.documents as Document[];
       setDocuments(docs);
@@ -97,7 +102,7 @@ export function ResourceWorkspace({
   useEffect(() => {
     if (!pending) return;
     const timer = setInterval(() => {
-      void observeMemory(pending).then((r) => {
+      void observeMemory(pending, scope).then((r) => {
         if (!r.ok) {
           setError(r.error);
           return;
@@ -117,7 +122,7 @@ export function ResourceWorkspace({
     return () => clearInterval(timer);
   }, [pending]);
   async function save() {
-    const key = JSON.stringify({ name, text });
+    const key = JSON.stringify({ name, text, scope });
     const req =
       retry.current?.key === key
         ? retry.current
@@ -130,7 +135,7 @@ export function ResourceWorkspace({
         id: req.id,
         title: name,
         content: text,
-      });
+      }, scope);
       if (!r.ok) {
         setError(r.error);
         return;
@@ -149,6 +154,7 @@ export function ResourceWorkspace({
       setName("");
       setText("");
       await load();
+      if (!isMemory) await choose(r.data as Document);
     } catch {
       setError("结果未确认，请沿原操作核对。");
     } finally {
@@ -158,7 +164,7 @@ export function ResourceWorkspace({
   async function search() {
     if (!query.trim()) return;
     setSearching(true);
-    const r = await findResources(kind, query);
+    const r = await findResources(kind, query, scope);
     if (r.ok) {
       setResults(r.references);
       setError("");
@@ -172,7 +178,7 @@ export function ResourceWorkspace({
           <Icon className="size-4" />
         </span>
         <div className="flex-1">
-          <h1 className="text-sm font-semibold">{title}</h1>
+          <h1 className="text-sm font-semibold">{title} · {scopeLabel}</h1>
           <p className="text-xs text-muted-foreground">
             {isMemory
               ? "保存明确的偏好与决定，让下一次对话接着往前。"
@@ -207,9 +213,10 @@ export function ResourceWorkspace({
               <DialogDescription>
                 {isMemory
                   ? "只记录你明确希望保留的事实、偏好或决定。"
-                  : "原文先持久保存，再交给知识服务建立索引。当前工作台仅供本机创造者使用。"}
+                  : "原文先持久保存，再交给知识服务建立索引。保存后仅在所选范围内检索。"}
               </DialogDescription>
             </DialogHeader>
+            <p className="text-xs text-muted-foreground">保存到：{scopeLabel}{scope.kind === "conversation" ? "。本会话成员可使用，请确认内容可以共享。" : "。不会自动提供给其他角色或会话。"}</p>
             <Input
               aria-label="标题"
               placeholder={isMemory ? "例如：我的沟通偏好" : "资料名称"}

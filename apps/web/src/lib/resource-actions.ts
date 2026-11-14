@@ -1,5 +1,6 @@
 "use server";
 import { z } from "zod";
+import { type ResourceScope } from "./resource-scopes";
 import {
   listKnowledge,
   listMemories,
@@ -19,14 +20,14 @@ function failure(e: unknown) {
         : "资源连接尚未配置，请检查本机私有连接文件。",
   };
 }
-export async function loadResources(kind: "memory" | "knowledge") {
+export async function loadResources(kind: "memory" | "knowledge", scope?: ResourceScope) {
   try {
     return {
       ok: true as const,
       data:
         kind === "memory"
-          ? await listMemories()
-          : { documents: await listKnowledge() },
+          ? await listMemories(scope)
+          : { documents: await listKnowledge(scope) },
     };
   } catch (e) {
     return failure(e);
@@ -35,6 +36,7 @@ export async function loadResources(kind: "memory" | "knowledge") {
 export async function saveResource(
   kind: "memory" | "knowledge",
   input: unknown,
+  scope?: ResourceScope,
 ) {
   try {
     const value = z
@@ -52,7 +54,7 @@ export async function saveResource(
     return {
       ok: true as const,
       data:
-        kind === "memory" ? await remember(value) : await saveKnowledge(value),
+        kind === "memory" ? await remember(value, scope) : await saveKnowledge(value, scope),
     };
   } catch (e) {
     return failure(e);
@@ -61,6 +63,7 @@ export async function saveResource(
 export async function findResources(
   kind: "memory" | "knowledge",
   query: string,
+  scope?: ResourceScope,
 ) {
   try {
     z.string().trim().min(1).max(2000).parse(query);
@@ -68,23 +71,23 @@ export async function findResources(
       ok: true as const,
       references:
         kind === "memory"
-          ? await searchMemory(query)
-          : await searchKnowledge(query),
+          ? await searchMemory(query, scope)
+          : await searchKnowledge(query, scope),
     };
   } catch (e) {
     return failure(e);
   }
 }
-export async function readMemorySource(id: string) {
+export async function readMemorySource(id: string, scope?: ResourceScope) {
   try {
-    return { ok: true as const, data: await readMemory(id) };
+    return { ok: true as const, data: await readMemory(id, scope) };
   } catch (e) {
     return failure(e);
   }
 }
-export async function observeMemory(id: string) {
+export async function observeMemory(id: string, scope?: ResourceScope) {
   try {
-    return { ok: true as const, data: await memoryOperation(id) };
+    return { ok: true as const, data: await memoryOperation(id, scope) };
   } catch (e) {
     return failure(e);
   }
