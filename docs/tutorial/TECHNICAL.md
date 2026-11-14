@@ -1,6 +1,6 @@
 # hutian 开发接手手册
 
-目标：你打开工作区后，知道怎样启动和调试、从哪个函数读起、数据存在哪里，以及改功能需要经过哪些文件。本文对应 **2026-11-13 当前源码与运行环境**。产品流程移至 [流程附录](product-overview.html)。
+目标：你打开工作区后，知道怎样启动和调试、从哪个函数读起、数据存在哪里，以及改功能需要经过哪些文件。本文对应 **2026-11-13 第 3 段源码与运行环境**，角色正式关联和人设注入已接通，真实范围见 [第 3 段交付](../stage-3.md)。产品流程移至 [流程附录](product-overview.html)。
 
 **最短阅读路线**：第 2 节看进程和文件，第 3 节看表，第 4、5 节跟一次写入与执行，第 9 节照着做第一个小改动。源码链接带文件和行号；浏览版点击后会复制 `绝对路径:行号`。
 
@@ -11,7 +11,7 @@
 | 发消息为什么没有经过 Nest API？ | 第 2、5 节：Next Server Actions 直接接通信宿主 |
 | 一个请求怎样落到 Windows？ | 第 5、6 节：`askConversation` → worker → Dock |
 | 怎么对照真实数据？ | 第 3 节：[本机只读数据库面板](http://127.0.0.1:3343/) |
-| 第一次改动从哪里下手？ | 第 9 节：消息时间显示与后续角色绑定 |
+| 第一次改动从哪里下手？ | 第 9 节：消息时间显示、改表顺序与角色绑定实现 |
 
 ## 1. 启动开发进程与调试
 
@@ -109,14 +109,14 @@ hutian-ai/
 
 | 旧版的复杂度 | 新版当前处理方式 | 仍需要看清的边界 |
 | --- | --- | --- |
-| Core 集中处理通信、执行接入、资料和记忆 | 通过 Matrix、Dock、AnythingLLM、Hindsight 接入 | 复杂度仍存在于模块和上游服务，不能只数新业务库的四张表 |
-| Actor 人设、运行上下文、通信与执行关联 | 先保存 Role，再手选已有助手与 Runtime | 正式角色绑定、指令注入和角色资源授权尚未完成 |
+| Core 集中处理通信、执行接入、资料和记忆 | 通过 Matrix、Dock、AnythingLLM、Hindsight 接入 | 复杂度仍存在于模块和上游服务，不能只数新业务库的表 |
+| Actor 人设、运行上下文、通信与执行关联 | Role 已正式关联通信身份，执行时加载人设 | 角色资源授权与完整会话连续性仍未完成 |
 | Actor Turn、DBOS 恢复、worldline 投影、任务与日程 | 当前是人明确发起一次执行，宿主保存原请求与交付记录 | 尚未移植完整行为、工作流与恢复体系；不能认为几把文件锁覆盖了旧能力 |
 | 多个领域包和完整工程检查 | 当前三个内部 workspace 包，按要求先打通最短路径 | 工程组织更轻不代表已经具备旧版全部业务能力 |
 
-可对照旧版 [AppModule](../../../hutian/apps/core-service/src/app/app.module.ts)、[DBOS 工作流](../../../hutian/apps/core-service/src/platform/dbos/durable-world.ts) 和 [会话执行上下文](../../../hutian/apps/core-service/src/modules/communication/conversation-runtime-input.ts)。旧代码会生成角色指令并区分上下文继续方式；新版 askConversation 的 context 目前没有 roleId / instructions，属于尚未补齐的业务链。
+可对照旧版 [AppModule](../../../hutian/apps/core-service/src/app/app.module.ts)、[DBOS 工作流](../../../hutian/apps/core-service/src/platform/dbos/durable-world.ts) 和 [会话执行上下文](../../../hutian/apps/core-service/src/modules/communication/conversation-runtime-input.ts)。旧代码会生成角色指令并区分上下文继续方式；新版第 3 段已通过 roleExecutionContext 加载正式角色定义，但没有移植完整 Actor Turn 与原生 session 连续性。
 
-当前更准确的完成范围是“核心模块调用已连通的单人原型”。独立模块的组合方式值得保留；角色在私聊、群聊和频道中的一致身份、人设生效、资源范围与执行过程仍需继续完成。业务协调规则应归 hutian，Matrix 目录内的可选执行宿主只是当前接入方式，不代替完整角色协调层。
+当前是本机单创造者的角色聊天版本。私聊、群聊和频道的角色身份与人设已在真实调用中核对；资源范围与完整执行过程仍需补齐。业务协调规则归 hutian，Matrix 目录内的宿主接收通用输入，不代替角色业务层。
 
 | 标记 | 当前用途 |
 | --- | --- |
@@ -137,11 +137,19 @@ Web 的 `@harness-dock/client` 来自发布的 SDK tarball，不是本 workspace
 
 ![数据库面板中真实的 roles 表和成员](assets/database-roles.png)
 
-*图 2：当前有 4 张业务表和 1 张迁移记录表。本次读取为 1 位创造者、3 个角色、2 个项目和 3 条项目角色关联；数量是当前快照。*
+*图 2：数据库面板的 roles 快照。第 3 段当前有 6 张业务表和 1 张迁移记录表，新增 role_chat_identities 与 role_runtime_bindings；截图早于执行配置补充。角色、项目及关联数量是截图时的快照。*
 
 ![业务库四张表的主外键，以及 TypeScript 字段到数据库列的映射](assets/business-schema.svg)
 
-*图 3：外键来自 migration。`Role.projectIds` 与 `Project.roleIds` 是 service 从关联表组装的返回字段，不是主表数组列。*
+*图 3：原四张业务表；第 3 段新增通信身份映射见下图。`Role.projectIds` 与 `Project.roleIds` 是 service 组装字段，不是主表数组列。*
+
+![角色到通信身份的正式映射，执行时加载角色定义并冻结版本](assets/role-identity.svg)
+
+新表由 [role-chat migration](../../apps/api/src/database/role-chat.ts) 创建。role_id 是 roles 外键及主键，agent_id 和 user_id 各自唯一；`WorkspaceService.bindRoleChat` 按拥有者范围锁定角色并保存关联。API 返回的 `Role.chatIdentity` 来自此表。
+
+成员默认 Runtime 另存于 `role_runtime_bindings`，由 [role-runtime migration](../../apps/api/src/database/role-runtime.ts) 创建。`role_id` 关联角色，`node_id + provider` 指定电脑与 Harness，`label` 是保存时的公开名称快照，`updated_at` 是执行配置自己的修订时间；不会修改 `roles.updated_at` 或人设版本。未设置默认时没有对应记录。
+
+从 [RoleRuntimeForm](../../apps/web/src/components/role-runtime-form.tsx) 读起：`saveRoleRuntime` 在 Next 服务端核对当前设备与 Harness，再调用 `PUT /v1/roles/:id/runtime`。Nest 核对拥有者、锁定角色，并比较 `expectedUpdatedAt`，避免其他页面的旧配置覆盖新值。模型、推理强度与权限仍由执行端管理。
 
 | 文件 | 作用 |
 | --- | --- |
@@ -231,17 +239,17 @@ const result = await this.db.getRepository(RoleSchema).update(
 
 ### 页面与消息状态
 
-[chat/page.tsx](../../apps/web/src/app/(workspace)/chat/page.tsx#L9) 先读取目录和房间初始状态，再传给 [Communications](../../apps/web/src/components/communications.tsx#L321)。重点读同一文件的三个位置：
+[chat/page.tsx](../../apps/web/src/app/(workspace)/chat/page.tsx#L9) 先读取目录和房间初始状态，再传给 [Communications](../../apps/web/src/components/communications.tsx#L334)。重点读同一文件的三个位置：
 
-- 约 454 行：Matrix 消息转 `ThreadMessageLike`，包含 `createdAt: new Date(m.timestamp)` 和 jobs 元信息。
-- 约 476 行：`useExternalStoreRuntime` 让 assistant-ui 使用外部消息源。
-- 约 482 行：`onNew` 防重、保存消息、请求助手和刷新。
+- `messages`：Matrix 消息转 `ThreadMessageLike`，包含 `createdAt: new Date(m.timestamp)` 和 jobs 元信息。
+- `useExternalStoreRuntime`：assistant-ui 使用外部消息源。
+- `onNew`：防重、保存消息、请求助手和刷新。
 
-页面约每 2.5 秒查询状态。localStorage 只保存当前浏览器的助手、Runtime 与资源开关偏好，执行仍在服务端重新核对。
+页面约每 2.5 秒查询状态。localStorage 只保存当前浏览器的助手、临时 Runtime 与资源开关偏好；成员默认保存在业务库。临时选择与成员执行配置修订时间关联，默认改变后不再沿用旧浏览器选择。选择“成员默认”时浏览器只提交 `runtimeMode: "member"`，`askConversation` 从服务端读取当前绑定并核对在线状态；原运行的查询仍沿原回执进行。
 
 ### 先写消息，再请求执行
 
-读 [postConversation](../../apps/web/src/lib/communication-actions.ts#L72) 与 [askConversation](../../apps/web/src/lib/communication-actions.ts#L92)。流程摘写如下，省略错误处理：
+读 [postConversation](../../apps/web/src/lib/communication-actions.ts#L91) 与 [askConversation](../../apps/web/src/lib/communication-actions.ts#L111)。流程摘写如下，省略错误处理：
 
 ```ts
 const sent = await postConversation({
@@ -269,6 +277,7 @@ if (agentId && sent.ok) {
 | --- | --- |
 | `GET /api/rooms` | 房间与助手目录 |
 | `POST /api/rooms` | 按原 transaction ID 创建房间 |
+| `POST /api/agents` | 明确创建或更新受管助手，复用原身份和设备 |
 | `GET /api/state?roomId=...` | 消息、成员、jobs、active |
 | `POST /api/messages` | 保存人类消息并返回 eventId |
 | `POST /api/agent` | 指定助手处理指定消息 |
@@ -285,12 +294,16 @@ if (agentId && sent.ok) {
     "nodeId": "authorized-device-uuid",
     "provider": "codex",
     "connectionId": "workspace",
-    "material": "检索片段、版本与来源"
+    "material": "检索片段、版本与来源",
+    "instructions": "由 hutian 服务端读取并构造的角色身份、职责与人设",
+    "instructionsVersion": "定义时间#内容hash",
+    "instructionsLabel": "本次成员名称",
+    "instructionsSource": "hutian://roles/role-uuid"
   }
 }
 ```
 
-`context` 当前允许 material、nodeId、provider、model、connectionId。**没有 roleId 或 instructions**，因此这条执行链没有加载墨菲的业务人设。
+`askConversation` 根据 agentId 查询正式绑定，核对当前 Matrix 身份，再从服务端读取 Role。`roleExecutionContext` 生成指令与定义 hash；浏览器不提交任意人设来替代正式配置。版本、来源和所选 Runtime 随原 job 保存。实现入口是 [role-chat.ts](../../apps/web/src/lib/role-chat.ts)。
 
 私聊按创造者与对方 Matrix 身份生成稳定别名，重复打开复用原房间；群聊 / 频道按当前操作 ID 创建。频道目前是邀请制长期主题房间。
 
@@ -457,16 +470,16 @@ function MessageTime() {
 
 `dataSource` 设置 synchronize:false、migrationsRun:false。API 检测到待迁移时停止并要求先 migrate，不会启动时默默改表。
 
-### 下一段真实功能：角色绑定
+### 已实现案例：角色绑定
 
-“墨菲真正使用保存的人设回复”需要补正式业务链：
+“墨菲真正使用保存的人设回复”在第 3 段采用以下业务链：
 
 - 角色与 Matrix 身份的关联由 hutian 业务层拥有。
 - askConversation 按正式角色与授权加载 instructions，不相信浏览器任意传入的角色指令。
 - 本次身份与指令版本随原请求保留，人设修改影响后续新请求。
-- 切换 Runtime 保留角色；已经开始的原运行继续沿原回执查询。
+- 在“成员 → 设置 → 执行配置”切换默认电脑与 Harness，聊天可临时覆盖；修改默认保留角色和人设版本，已经开始的原运行继续沿原回执查询。
 
-这些尚未实现。下一次可以对着 askConversation 和成员保存链共同确定最小改动，再开发。
+上述身份关联、服务端加载和原请求快照已在第 3 段接通。原生 session 连续恢复和角色资源授权还需后续实现，不从这次接入推断已经具备。
 
 ## 10. 配置与当前约束
 
@@ -479,7 +492,7 @@ function MessageTime() {
 | Matrix `.local/host-connections.json` | 宿主允许的连接别名与私有文件映射 |
 | Matrix `.local/agents.json` 与宿主配置 | 已接入助手身份与固定宿主指令 |
 
-当前是本机单创造者 MVP。正式角色绑定、多用户授权、一般附件、资料编辑删除、完整分页、原生审批 / 追加 / 取消 UI 未完成。页面读取最近 100 条文本消息，宿主最多 30 条并限制长度。框架有某能力，不代表产品已接通。
+当前是本机单创造者 MVP。角色绑定与人设已接通；多用户 / 角色资源授权、一般附件、资料编辑删除、完整分页、原生审批 / 追加 / 取消 UI 未完成。页面读取最近 100 条文本消息，宿主最多 30 条并限制长度。框架有某能力，不代表产品已接通。
 
 产品、职责和进度分别看根工作区 `docs/hutian-product-design.md`、`docs/hutian-system-design.md`、`docs/hutian-product-roadmap.md`，当前实现见 [stage-2](../stage-2.md)。旧 hutian / workstation 是参考，不继续作为目标产品扩建。
 

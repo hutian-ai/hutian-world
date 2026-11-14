@@ -4,6 +4,8 @@ export interface CreatorRecord { id: string; displayName: string; createdAt: Dat
 export interface ProjectRecord { id: string; creatorId: string; name: string; goal: string; createdAt: Date; updatedAt: Date }
 export interface RoleRecord { id: string; creatorId: string; name: string; description: string; instructions: string; createdAt: Date; updatedAt: Date }
 export interface MembershipRecord { projectId: string; roleId: string }
+export interface RoleChatRecord { roleId: string; agentId: string; userId: string; createdAt: Date }
+export interface RoleRuntimeRecord { roleId: string; nodeId: string; provider: string; label: string; updatedAt: Date }
 const id = { type: "uuid" as const, primary: true };
 const createdAt = { type: "timestamptz" as const, createDate: true, name: "created_at" };
 const updatedAt = { type: "timestamptz" as const, updateDate: true, name: "updated_at" };
@@ -24,5 +26,22 @@ export const RoleSchema = new EntitySchema<RoleRecord>({
 export const MembershipSchema = new EntitySchema<MembershipRecord>({
   name: "ProjectRole", tableName: "project_roles", columns: {
     projectId: { ...id, name: "project_id" }, roleId: { ...id, name: "role_id" },
+  },
+});
+export const RoleChatSchema = new EntitySchema<RoleChatRecord>({
+  name: "RoleChatIdentity", tableName: "role_chat_identities", columns: {
+    roleId: { ...id, name: "role_id" },
+    agentId: { type: "varchar", length: 50, name: "agent_id", unique: true },
+    userId: { type: "varchar", length: 500, name: "user_id", unique: true },
+    createdAt,
+  },
+});
+export const RoleRuntimeSchema = new EntitySchema<RoleRuntimeRecord>({
+  name: "RoleRuntimeBinding", tableName: "role_runtime_bindings", columns: {
+    roleId: { ...id, name: "role_id" },
+    nodeId: { type: "uuid", name: "node_id" },
+    provider: { type: "varchar", length: 128 },
+    label: { type: "varchar", length: 200 },
+    updatedAt,
   },
 });

@@ -15,6 +15,9 @@ import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from "@/componen
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getWorkspace } from "@/lib/api";
 import { memberHref, memberOwnerName, memberQuery } from "@/lib/member-navigation";
+import { RoleChatButton } from "@/components/role-chat-button";
+import { RoleRuntimeForm } from "@/components/role-runtime-form";
+import { roleRuntimeChoices } from "@/lib/role-runtime";
 
 const memberViews = [
   ["overview", "概览"],
@@ -45,7 +48,7 @@ function MemberProjects({ projects, owner }: { projects: Project[]; owner: boole
 
 export default async function MemberPage({ params, searchParams }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string | string[]; view?: string | string[] }>;
+  searchParams: Promise<{ q?: string | string[]; view?: string | string[]; section?: string | string[] }>;
 }) {
   const [{ id }, search, workspace] = await Promise.all([params, searchParams, getWorkspace()]);
   const role = workspace.roles.find((member) => member.id === id);
@@ -58,6 +61,9 @@ export default async function MemberPage({ params, searchParams }: {
   const directoryHref = memberHref("/members", query);
   const views = role ? memberViews : memberViews.slice(0, 1);
   const view = views.find(([key]) => key === search.view)?.[0] ?? "overview";
+  const settingsSection = search.section === "runtime" ? "runtime" : "general";
+  const runtimeHref = memberHref(`/members/${id}`, query, { view: "settings", section: "runtime" });
+  const runtimeOptions = role && view === "settings" && settingsSection === "runtime" ? await roleRuntimeChoices() : { choices: [], error: "" };
   function href(target: MemberView) {
     const options: Record<string, string> = target === "overview" ? {} : { view: target };
     if (target === "settings") options.section = "general";
@@ -77,6 +83,7 @@ export default async function MemberPage({ params, searchParams }: {
         eyebrow="成员"
         title={name}
         description={owner ? "查看成员身份与管理的项目。" : role?.description || "查看这位成员的项目、人设和设置。"}
+        action={role ? <RoleChatButton roleId={role.id} /> : undefined}
         metadata={
           <>
             {owner && <Badge variant="secondary"><ShieldCheck />管理员</Badge>}
@@ -101,6 +108,10 @@ export default async function MemberPage({ params, searchParams }: {
                   {role && <div className="md:col-span-2"><dt>人设</dt><dd>
                       {role.instructions ? <Link href={href("capabilities")} className="underline underline-offset-4">查看完整人设</Link> : "暂无人设"}
                     </dd></div>}
+                  {role && <div className="md:col-span-2"><dt>默认 Runtime</dt><dd>
+                    <p>{role.runtimeBinding?.label || "未设置，发送时选择"}</p>
+                    <Link href={runtimeHref} className="underline underline-offset-4">调整执行配置</Link>
+                  </dd></div>}
                 </dl>
               </Panel>
             </div>
@@ -127,10 +138,14 @@ export default async function MemberPage({ params, searchParams }: {
             </Tabs>
           )}
           {view === "settings" && role && (
-            <Tabs value="general" orientation="vertical" className="secondary-layout secondary-tabs !grid !gap-3 md:!gap-5">
-              <TabsList variant="line" aria-label="成员设置"><TabsTrigger value="general">通用</TabsTrigger></TabsList>
-              <TabsContent value="general" className="min-w-0 max-w-5xl">
-                <MemberForm key={role.id} role={role} query={query} cancelHref={directoryHref} />
+            <Tabs value={settingsSection} orientation="vertical" className="secondary-layout secondary-tabs !grid !gap-3 md:!gap-5">
+              <TabsList variant="line" aria-label="成员设置">
+                <TabsTrigger value="general" asChild><Link href={href("settings")}>通用</Link></TabsTrigger>
+                <TabsTrigger value="runtime" asChild><Link href={runtimeHref}>执行配置</Link></TabsTrigger>
+              </TabsList>
+              <TabsContent value={settingsSection} className="min-w-0 max-w-5xl">
+                {settingsSection === "general" ? <MemberForm key={role.id} role={role} query={query} cancelHref={directoryHref} /> :
+                  <RoleRuntimeForm key={`${role.id}:${role.runtimeBinding?.updatedAt ?? "none"}`} roleId={role.id} binding={role.runtimeBinding} choices={runtimeOptions.choices} connectionError={runtimeOptions.error} />}
               </TabsContent>
             </Tabs>
           )}

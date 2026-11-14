@@ -11,6 +11,25 @@ export const roleInput = z.object({
   instructions: z.string().trim().max(20000, "角色设定最多 20000 个字符"),
 }).strict();
 export const createRoleInput = roleInput.extend({ projectId: z.uuid().optional() });
+export const roleChatIdentityInput = z.object({
+  agentId: z.string().regex(/^[a-z][a-z0-9-]{0,49}$/),
+  userId: z.string().startsWith("@").max(500),
+}).strict();
+export type RoleChatIdentity = z.infer<typeof roleChatIdentityInput>;
+export const runtimeReference = z.object({
+  nodeId: z.uuid(),
+  provider: z.string().trim().min(1).max(128),
+}).strict();
+export type RuntimeReference = z.infer<typeof runtimeReference>;
+export const roleRuntimeBindingInput = z.object({
+  runtime: runtimeReference.extend({ label: z.string().trim().min(1).max(200) }).nullable(),
+  expectedUpdatedAt: z.string().datetime().nullable(),
+}).strict();
+export type RoleRuntimeBindingInput = z.infer<typeof roleRuntimeBindingInput>;
+export interface RoleRuntimeBinding extends RuntimeReference {
+  label: string;
+  updatedAt: string;
+}
 export type ProjectInput = z.infer<typeof projectInput>;
 export type RoleInput = z.infer<typeof roleInput>;
 export type CreateRoleInput = z.infer<typeof createRoleInput>;
@@ -32,6 +51,8 @@ export interface Role {
   createdAt: string;
   updatedAt: string;
   projectIds: string[];
+  chatIdentity: RoleChatIdentity | null;
+  runtimeBinding: RoleRuntimeBinding | null;
 }
 export interface Workspace {
   creator: { id: string; displayName: string };

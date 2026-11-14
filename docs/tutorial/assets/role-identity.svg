@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="430" viewBox="0 0 1040 430" role="img" aria-labelledby="title desc">
+  <title id="title">角色与通信身份的正式关联</title>
+  <desc id="desc">hutian 的角色通过 role_chat_identities 唯一关联 Matrix 身份，服务端加载人设并保留本次版本。更换 Runtime 不重建角色或通信身份。</desc>
+  <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#9eafa2"/></marker></defs>
+  <rect width="1040" height="430" fill="#f4f7f1"/>
+  <g font-family="PingFang SC, Microsoft YaHei, sans-serif" fill="#18392f">
+    <text x="40" y="45" font-size="24" font-weight="600">第 3 段：角色定义与通信身份分属不同模块</text>
+    <g fill="#fff" stroke="#d4dfd3">
+      <rect x="40" y="95" width="260" height="190" rx="14"/>
+      <rect x="390" y="95" width="260" height="190" rx="14"/>
+      <rect x="740" y="95" width="260" height="190" rx="14"/>
+    </g>
+    <g font-size="20" font-weight="600">
+      <text x="62" y="131">roles · hutian</text>
+      <text x="412" y="131" font-size="19">role_chat_identities</text>
+      <text x="762" y="131">Matrix 受管身份</text>
+    </g>
+    <g font-size="17" fill="#51655b">
+      <text x="62" y="169">id: uuid PK</text>
+      <text x="62" y="197">name / description</text>
+      <text x="62" y="225">instructions / updated_at</text>
+      <text x="412" y="169">role_id: PK + FK → roles</text>
+      <text x="412" y="197">agent_id: UNIQUE</text>
+      <text x="412" y="225">user_id: UNIQUE</text>
+      <text x="412" y="253">created_at: timestamptz</text>
+      <text x="762" y="169">稳定用户与设备身份</text>
+      <text x="762" y="197">房间参与关系与消息</text>
+      <text x="762" y="225">会话凭据留在模块私有文件</text>
+    </g>
+    <g fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)"><path d="M300 190H390"/><path d="M650 190H740"/></g>
+    <text x="319" y="177" font-size="16">1 : 1</text>
+    <text x="662" y="177" font-size="14">稳定引用</text>
+    <text x="40" y="345" font-size="19" fill="#166747">askConversation → roleExecutionContext → 宿主冻结指令、定义版本与原请求</text>
+    <text x="40" y="390" font-size="17" fill="#51655b">同一身份参与私聊、群聊和频道；Runtime 按本次请求选择，资源授权仍需后续补齐。</text>
+  </g>
+</svg>

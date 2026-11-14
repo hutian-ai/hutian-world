@@ -14,18 +14,18 @@
     <ns0:text x="40" y="45" font-size="24" font-weight="600" fill="#18392f">第二条代码链：消息保存、执行、回帖分开</ns0:text>
     <ns0:rect x="40" y="90" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
     <ns0:text x="62" y="126" font-size="21" font-weight="600" fill="#18392f">1  onNew · Client</ns0:text>
-    <ns0:text x="62" y="159" font-size="16" font-weight="400" fill="#51655b">communications.tsx:482</ns0:text>
+    <ns0:text x="62" y="159" font-size="16" font-weight="400" fill="#51655b">communications.tsx:504</ns0:text>
     <ns0:text x="62" y="185" font-size="16" font-weight="400" fill="#51655b">组装 text / transactionId</ns0:text>
     <ns0:text x="62" y="211" font-size="16" font-weight="400" fill="#51655b">选择 assistant + Runtime</ns0:text>
     <ns0:rect x="570" y="90" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
     <ns0:text x="592" y="126" font-size="21" font-weight="600" fill="#18392f">2  postConversation · Next</ns0:text>
-    <ns0:text x="592" y="159" font-size="16" font-weight="400" fill="#51655b">communication-actions.ts:72</ns0:text>
+    <ns0:text x="592" y="159" font-size="16" font-weight="400" fill="#51655b">communication-actions.ts:91</ns0:text>
     <ns0:text x="592" y="185" font-size="16" font-weight="400" fill="#51655b">POST 3310 /api/messages</ns0:text>
     <ns0:text x="592" y="211" font-size="16" font-weight="400" fill="#51655b">返回已保存消息 eventId</ns0:text>
     <ns0:rect x="570" y="340" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
     <ns0:text x="592" y="376" font-size="21" font-weight="600" fill="#18392f">3  askConversation · Next</ns0:text>
-    <ns0:text x="592" y="409" font-size="16" font-weight="400" fill="#51655b">communication-actions.ts:92</ns0:text>
-    <ns0:text x="592" y="435" font-size="16" font-weight="400" fill="#51655b">验证成员 / Runtime，prepareReferences</ns0:text>
+    <ns0:text x="592" y="409" font-size="16" font-weight="400" fill="#51655b">communication-actions.ts:111</ns0:text>
+    <ns0:text x="592" y="435" font-size="16" font-weight="400" fill="#51655b">核对身份 / Runtime，加载人设与材料</ns0:text>
     <ns0:text x="592" y="461" font-size="16" font-weight="400" fill="#51655b">POST /api/agent + context</ns0:text>
     <ns0:rect x="40" y="340" width="430" height="160" rx="14" fill="#ffffff" stroke="#d4dfd3" />
     <ns0:text x="62" y="376" font-size="21" font-weight="600" fill="#18392f">4  launchHostRequest</ns0:text>
@@ -59,6 +59,6 @@
     <ns0:path d="M 470 670 H 570" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
     <ns0:path d="M 785 750 V 840" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
     <ns0:path d="M 570 920 H 470" fill="none" stroke="#9eafa2" stroke-width="2" marker-end="url(#arrow)" />
-    <ns0:text x="40" y="1055" font-size="18" font-weight="600" fill="#a35c20">当前 context 没有 roleId / instructions；业务成员人设尚未进入这条执行链。</ns0:text>
+    <ns0:text x="40" y="1055" font-size="18" font-weight="600" fill="#a35c20">context 保存服务端人设与版本；角色身份保持稳定，Runtime 可按请求替换。</ns0:text>
   </ns0:g>
 </ns0:svg>

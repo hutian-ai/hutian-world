@@ -1,5 +1,7 @@
 import "server-only";
 import { z } from "zod";
+import type { Role } from "@hutian-world/contracts";
+import { getWorkspace } from "./api";
 
 const agent = z.object({
   id: z.string(),
@@ -7,6 +9,8 @@ const agent = z.object({
   name: z.string(),
   description: z.string(),
   joined: z.boolean().optional(),
+  roleId: z.uuid().optional(),
+  runtimeBinding: z.object({ nodeId: z.uuid(), provider: z.string(), label: z.string(), updatedAt: z.string() }).nullable().optional(),
 });
 const room = z.object({
   id: z.string(),
@@ -41,13 +45,20 @@ export const conversationSchema = z.object({
       runId: z.string().nullable(),
       state: z.string(),
       error: z.string().nullable(),
+      instructionsVersion: z.string().nullish(),
+      instructionsLabel: z.string().nullish(),
+      instructionsSource: z.string().nullish(),
+      runtimeLabel: z.string().nullish(),
+      nodeId: z.string().nullish(),
+      provider: z.string().nullish(),
     }),
   ),
   active: z
     .object({ agentId: z.string(), roomId: z.string(), eventId: z.string() })
     .nullable(),
 });
-export type ChatDirectory = z.infer<typeof directorySchema>;
+export type ChatRole = Pick<Role, "id" | "name" | "description" | "chatIdentity" | "runtimeBinding">;
+export type ChatDirectory = z.infer<typeof directorySchema> & { roles: ChatRole[] };
 export type Conversation = z.infer<typeof conversationSchema>;
 export type RoomKind = z.infer<typeof room>["kind"];
 
@@ -86,15 +97,32 @@ export async function communicationRequest(path: string, body?: unknown) {
   return response.json() as Promise<unknown>;
 }
 export async function readDirectory() {
-  return directorySchema.parse(await communicationRequest("/api/rooms"));
+  const [response, workspace] = await Promise.all([communicationRequest("/api/rooms"), getWorkspace()]);
+  const directory = directorySchema.parse(response);
+  return { ...directory, agents: directory.agents.map(a => roleAgent(a, workspace.roles)),
+    roles: workspace.roles.map(({ id, name, description, chatIdentity, runtimeBinding }) => ({ id, name, description, chatIdentity, runtimeBinding })) };
+}
+function roleAgent(a: z.infer<typeof agent>, roles: Role[]) {
+  const role = roles.find(r => r.chatIdentity?.agentId === a.id && r.chatIdentity.userId === a.userId);
+  return role ? { ...a, name: role.name, description: role.description, roleId: role.id, runtimeBinding: role.runtimeBinding } : a;
 }
 export async function readConversation(id: string) {
   z.string().startsWith("!").max(500).parse(id);
   // The communication host checks the operator's current Matrix membership on
   // every state read. Avoid re-reading every room on each polling request.
-  return conversationSchema.parse(
-    await communicationRequest(
+  const [response, workspace] = await Promise.all([
+    communicationRequest(
       `/api/state?${new URLSearchParams({ roomId: id })}`,
     ),
-  );
+    getWorkspace(),
+  ]);
+  const conversation = conversationSchema.parse(response);
+  const agents = conversation.agents.map(a => roleAgent(a, workspace.roles));
+  return { ...conversation, agents, members: conversation.members.map(member => {
+    const profile = agents.find(a => a.userId === member.id);
+    return profile ? { ...member, name: profile.name } : member;
+  }), messages: conversation.messages.map(message => {
+    const profile = agents.find(a => a.id === message.agentId);
+    return profile ? { ...message, name: profile.name } : message;
+  }) };
 }

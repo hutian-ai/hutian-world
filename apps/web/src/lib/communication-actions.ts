@@ -1,6 +1,6 @@
 "use server";
 import { z } from "zod";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { getWorkspace } from "./api";
 import {
   communicationRequest,
@@ -9,6 +9,7 @@ import {
 } from "./communications";
 import { prepareReferences } from "./resources";
 import { getDockConnection, getDockDevice } from "./dock";
+import { ensureRoleAgent, roleExecutionContext } from "./role-chat";
 
 const roomId = z.string().startsWith("!").max(500);
 const eventId = z.string().startsWith("$").max(500);
@@ -43,13 +44,23 @@ export async function createCommunication(input: unknown) {
       .object({
         kind: z.enum(["direct", "group", "channel"]),
         name: z.string().trim().min(1).max(80),
-        agentIds: z.array(agentId).max(20),
+        agentIds: z.array(agentId).max(20).default([]),
+        roleIds: z.array(z.uuid()).max(20).default([]),
         transactionId: z.uuid(),
       })
       .strict()
       .parse(input);
-    if (value.kind === "direct" && value.agentIds.length !== 1)
+    if (value.agentIds.length + value.roleIds.length > 20) throw new Error("单次最多邀请 20 位成员。");
+    if (value.kind === "direct" && value.agentIds.length + value.roleIds.length !== 1)
       throw new Error("请选择一位私聊对象。");
+    const workspace = await getWorkspace();
+    for (const id of new Set(value.roleIds)) {
+      const role = workspace.roles.find(r => r.id === id);
+      if (!role) throw new Error("所选成员不存在或不可访问。");
+      const agent = await ensureRoleAgent(role);
+      value.agentIds.push(agent.id);
+    }
+    value.agentIds = [...new Set(value.agentIds)];
     const directory = await readDirectory();
     if (value.agentIds.some((id) => !directory.agents.some((a) => a.id === id)))
       throw new Error("所选助手已不可用。");
@@ -61,13 +72,21 @@ export async function createCommunication(input: unknown) {
         .digest("hex");
       value.transactionId = `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-8${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
     }
+    const { roleIds: _roleIds, ...request } = value;
     const result = z
       .object({ room: z.object({ id: roomId }) })
-      .parse(await communicationRequest("/api/rooms", value));
+      .parse(await communicationRequest("/api/rooms", request));
     return { ok: true as const, roomId: result.room.id };
   } catch (e) {
     return failure(e);
   }
+}
+export async function openRoleConversation(id: string) {
+  try {
+    const role = (await getWorkspace()).roles.find(r => r.id === z.uuid().parse(id));
+    if (!role) throw new Error("成员不存在或不可访问。");
+    return await createCommunication({ kind: "direct", name: role.name, roleIds: [role.id], transactionId: randomUUID() });
+  } catch (e) { return failure(e); }
 }
 export async function postConversation(input: unknown) {
   try {
@@ -99,6 +118,7 @@ export async function askConversation(input: unknown) {
         resume: z.boolean().optional(),
         useMemory: z.boolean().optional(),
         useKnowledge: z.boolean().optional(),
+        runtimeMode: z.enum(["member", "manual"]).optional(),
         runtime: z
           .object({ nodeId: z.uuid(), provider: z.string().min(1).max(128) })
           .optional(),
@@ -121,17 +141,27 @@ export async function askConversation(input: unknown) {
       });
       return { ok: true as const, references: [] };
     }
-    if (!value.runtime) throw new Error("请明确选择这次回复使用的 Runtime。");
-    if (value.runtime) {
-      const device = await getDockDevice(value.runtime.nodeId);
+    const workspace = await getWorkspace();
+    const role = workspace.roles.find(r => r.chatIdentity?.agentId === value.agentId);
+    const peer = state.agents.find(a => a.id === value.agentId)!;
+    if (role && role.chatIdentity?.userId !== peer.userId)
+      throw new Error("角色通信身份与当前房间不一致，未派发执行。");
+    if (value.runtimeMode === "member" && value.runtime) throw new Error("请选择使用成员默认或临时 Runtime。");
+    const selectedRuntime = value.runtimeMode === "member" ? role?.runtimeBinding : value.runtime;
+    if (!selectedRuntime) throw new Error(value.runtimeMode === "member" ? "这位成员尚未设置默认 Runtime，请在执行配置中设置或在聊天中临时选择。" : "请明确选择这次回复使用的 Runtime。");
+    let runtimeLabel = "";
+    {
+      const device = await getDockDevice(selectedRuntime.nodeId);
       if (
         device.state !== "online" ||
         !device.runtimes.some(
-          (r) => r.key === value.runtime!.provider && r.status === "ready",
+          (r) => r.key === selectedRuntime.provider && r.status === "ready",
         )
       )
         throw new Error("所选 Runtime 当前不可用，消息已保留，未派发执行。");
+      runtimeLabel = `${value.runtimeMode === "member" ? "成员默认 · " : ""}${device.device.label || device.device.nodeId} · ${device.runtimes.find(r => r.key === selectedRuntime.provider)!.displayName}`.slice(0, 200);
     }
+    if (role) await ensureRoleAgent(role);
     const { references, material } = await prepareReferences(
       message.text,
       Boolean(value.useMemory),
@@ -142,10 +172,12 @@ export async function askConversation(input: unknown) {
       eventId: value.eventId,
       agentId: value.agentId,
       context: {
+        ...(role ? roleExecutionContext(role) : {}),
+        ...(runtimeLabel ? { runtimeLabel } : {}),
         ...(material ? { material } : {}),
-        ...(value.runtime
-          ? { ...value.runtime, connectionId: "workspace" }
-          : {}),
+        nodeId: selectedRuntime.nodeId,
+        provider: selectedRuntime.provider,
+        connectionId: "workspace",
       },
     });
     return { ok: true as const, references };
@@ -177,9 +209,15 @@ export async function discoverChatRuntimes() {
 export async function inviteConversation(id: string, peer: string) {
   try {
     await readConversation(roomId.parse(id));
+    let target = peer;
+    if (peer.startsWith("role:")) {
+      const role = (await getWorkspace()).roles.find(r => r.id === z.uuid().parse(peer.slice(5)));
+      if (!role) throw new Error("成员不存在或不可访问。");
+      target = (await ensureRoleAgent(role)).id;
+    }
     await communicationRequest("/api/members", {
       roomId: id,
-      agentId: agentId.parse(peer),
+      agentId: agentId.parse(target),
     });
     return { ok: true as const };
   } catch (e) {

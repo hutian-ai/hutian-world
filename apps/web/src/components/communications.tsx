@@ -112,6 +112,10 @@ function UserMessage() {
           </summary>
           <div className="mt-1 rounded-md border px-3 py-2">
             {job.error && <p>{job.error}</p>}
+            {job.instructionsLabel && <p>本次成员：{job.instructionsLabel}</p>}
+            {job.instructionsVersion && <p title={job.instructionsVersion}>人设版本：{job.instructionsVersion.split("#").at(-1)?.slice(0, 12)}</p>}
+            {job.instructionsSource?.match(/^hutian:\/\/roles\/[\da-f-]{36}$/) && <Link className="underline underline-offset-4" href={`/members/${job.instructionsSource.split("/").at(-1)}?view=capabilities&section=definition`}>查看当前成员配置</Link>}
+            {(job.runtimeLabel || job.nodeId) && <p>本次选择：{job.runtimeLabel || `${job.nodeId} · ${job.provider ?? ""}`}</p>}
             <p>原运行：{job.runId ?? "尚未取得回执"}</p>
             <p>记录保留；未知结果不会自动派发替代运行。</p>
           </div>
@@ -120,7 +124,14 @@ function UserMessage() {
     </MessagePrimitive.Root>
   );
 }
-function NewConversation({ agents }: { agents: ChatDirectory["agents"] }) {
+function conversationPeers(directory: ChatDirectory) {
+  return [
+    ...directory.roles.map(r => ({ id: `role:${r.id}`, name: r.name, description: r.description, roleId: r.id })),
+    ...directory.agents.filter(a => !a.roleId && !/^role-[\da-f]{32}$/.test(a.id)).map(a => ({ ...a, roleId: undefined })),
+  ];
+}
+function NewConversation({ directory }: { directory: ChatDirectory }) {
+  const agents = conversationPeers(directory);
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<RoomKind>("direct");
@@ -149,7 +160,8 @@ function NewConversation({ agents }: { agents: ChatDirectory["agents"] }) {
       const result = await createCommunication({
         kind,
         name: title,
-        agentIds: selected,
+        agentIds: selected.filter(id => !id.startsWith("role:")),
+        roleIds: selected.filter(id => id.startsWith("role:")).map(id => id.slice(5)),
         transactionId: transaction.id,
       });
       if (!result.ok) {
@@ -218,7 +230,7 @@ function NewConversation({ agents }: { agents: ChatDirectory["agents"] }) {
         </label>
         <div className="grid gap-1">
           <p className="mb-1 text-xs text-muted-foreground">
-            {kind === "direct" ? "选择一位助手" : "邀请助手（可稍后添加）"}
+            {kind === "direct" ? "选择一位成员" : "邀请成员（可稍后添加）"}
           </p>
           {agents.map((a) => (
             <Button
@@ -238,9 +250,9 @@ function NewConversation({ agents }: { agents: ChatDirectory["agents"] }) {
               <span className="flex size-7 items-center justify-center rounded-md border bg-primary/10 text-primary">
                 {a.name.slice(0, 1)}
               </span>
-              <span className="grid text-left">
-                <span>{a.name}</span>
-                <span className="text-xs font-normal text-muted-foreground">
+              <span className="grid min-w-0 flex-1 text-left">
+                <span className="truncate">{a.name}</span>
+                <span className="line-clamp-2 text-xs font-normal text-muted-foreground">
                   {a.description}
                 </span>
               </span>
@@ -265,7 +277,8 @@ function NewConversation({ agents }: { agents: ChatDirectory["agents"] }) {
     </Dialog>
   );
 }
-function Welcome({ agents }: { agents: ChatDirectory["agents"] }) {
+function Welcome({ directory }: { directory: ChatDirectory }) {
+  const agents = conversationPeers(directory);
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center p-8">
       <div className="w-full max-w-lg">
@@ -283,7 +296,7 @@ function Welcome({ agents }: { agents: ChatDirectory["agents"] }) {
         </p>
         <div className="mt-7 border-t pt-5">
           <p className="mb-3 text-xs text-muted-foreground">
-            已接入的助手 · {agents.length}
+            可以一起工作的成员 · {agents.length}
           </p>
           <div className="grid gap-2 sm:grid-cols-2">
             {agents.map((a) => (
@@ -322,10 +335,12 @@ export function Communications({
   directory,
   initial,
   selectedId,
+  preferredAgentId,
 }: {
   directory: ChatDirectory;
   initial: Conversation | null;
   selectedId?: string;
+  preferredAgentId?: string;
 }) {
   const router = useRouter();
   const [state, setState] = useState(initial);
@@ -333,52 +348,67 @@ export function Communications({
   const [error, setError] = useState("");
   const [connectionError, setConnectionError] = useState("");
   const [sending, setSending] = useState(false);
-  const [agentId, setAgentId] = useState(
-    initial?.agents.filter((a) => a.joined).length === 1
+  const initialAgentId = preferredAgentId || (initial?.agents.filter((a) => a.joined).length === 1
       ? initial.agents.find((a) => a.joined)!.id
-      : "",
-  );
+      : "");
+  const [agentId, setAgentId] = useState(initialAgentId);
   const retry = useRef<{ text: string; id: string } | null>(null);
   const inFlight = useRef(false);
   const selected = directory.rooms.find((r) => r.id === selectedId);
   const joined = state?.agents.filter((a) => a.joined) ?? [];
+  const memberRuntime = joined.find(a => a.id === agentId)?.runtimeBinding ?? null;
+  const observedBinding = useRef(`${initialAgentId}:${initial?.agents.find(a => a.id === initialAgentId)?.runtimeBinding?.updatedAt ?? ""}`);
   const [useMemory, setUseMemory] = useState(false);
   const [useKnowledge, setUseKnowledge] = useState(false);
   const [references, setReferences] = useState<Reference[]>([]);
   const [runtimes, setRuntimes] = useState<
     { nodeId: string; provider: string; label: string }[]
   >([]);
-  const [runtimeKey, setRuntimeKey] = useState("select");
+  const [runtimeKey, setRuntimeKey] = useState(initial?.agents.find(a => a.id === initialAgentId)?.runtimeBinding ? "member-default" : "select");
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   useEffect(() => {
     if (!selectedId) return;
+    let targetId = initialAgentId;
+    let saved: Record<string, any> | null = null;
     try {
-      const saved = JSON.parse(
+      saved = JSON.parse(
         localStorage.getItem(`hutian:conversation:${selectedId}`) ?? "null",
       );
       if (saved && typeof saved === "object") {
+        const savedAgentId = saved.agentId;
         if (
-          typeof saved.agentId === "string" &&
-          (saved.agentId === "" || joined.some((a) => a.id === saved.agentId))
+          !preferredAgentId &&
+          typeof savedAgentId === "string" &&
+          (savedAgentId === "" || joined.some((a) => a.id === savedAgentId))
         )
-          setAgentId(saved.agentId);
-        if (
-          saved.runtime &&
-          typeof saved.runtime.nodeId === "string" &&
-          typeof saved.runtime.provider === "string" &&
-          typeof saved.runtime.label === "string"
-        ) {
-          setRuntimes([saved.runtime]);
-          setRuntimeKey(saved.runtime.nodeId + "::" + saved.runtime.provider);
-        }
+          targetId = savedAgentId;
         setUseMemory(saved.useMemory === true);
         setUseKnowledge(saved.useKnowledge === true);
       }
     } catch {
       /* Browser preferences never replace server authorization. */
     }
+    const binding = joined.find(a => a.id === targetId)?.runtimeBinding ?? null;
+    setAgentId(targetId);
+    setRuntimeKey(binding ? "member-default" : "select");
+    const storedRuntime = saved?.runtime;
+    const canRestore = saved?.agentId === targetId &&
+      ((saved?.runtimeMode === "manual" && saved?.runtimeBindingVersion === (binding?.updatedAt ?? "")) || (!saved?.runtimeMode && !binding));
+    if (canRestore && storedRuntime && typeof storedRuntime.nodeId === "string" && typeof storedRuntime.provider === "string" && typeof storedRuntime.label === "string") {
+      setRuntimes([storedRuntime]);
+      setRuntimeKey(`${storedRuntime.nodeId}::${storedRuntime.provider}`);
+    }
+    observedBinding.current = `${targetId}:${binding?.updatedAt ?? ""}`;
     setPreferencesLoaded(true);
-  }, [selectedId]);
+  }, [selectedId, preferredAgentId]);
+  useEffect(() => {
+    if (!preferencesLoaded) return;
+    const signature = `${agentId}:${memberRuntime?.updatedAt ?? ""}`;
+    if (observedBinding.current !== signature) {
+      observedBinding.current = signature;
+      setRuntimeKey(memberRuntime ? "member-default" : "select");
+    }
+  }, [agentId, memberRuntime?.updatedAt, preferencesLoaded]);
   useEffect(() => {
     if (!preferencesLoaded || !selectedId) return;
     const selectedRuntime = runtimes.find(
@@ -389,6 +419,8 @@ export function Communications({
         `hutian:conversation:${selectedId}`,
         JSON.stringify({
           agentId,
+          runtimeMode: runtimeKey === "member-default" ? "member" : "manual",
+          runtimeBindingVersion: memberRuntime?.updatedAt ?? "",
           runtime: selectedRuntime,
           useMemory,
           useKnowledge,
@@ -405,19 +437,29 @@ export function Communications({
     useMemory,
     useKnowledge,
     runtimes,
+    memberRuntime?.updatedAt,
   ]);
   const [preparing, setPreparing] = useState(false);
   async function discover() {
     const r = await discoverChatRuntimes();
-    if (r.ok) setRuntimes(r.runtimes);
+    if (r.ok) {
+      setRuntimes(r.runtimes);
+      if (runtimeKey !== "select" && runtimeKey !== "member-default" && !r.runtimes.some(item => `${item.nodeId}::${item.provider}` === runtimeKey)) {
+        setRuntimeKey("select");
+        setError("之前选择的 Runtime 当前不可用，请重新选择。");
+      }
+      if (runtimeKey === "member-default" && memberRuntime && !r.runtimes.some(item => item.nodeId === memberRuntime.nodeId && item.provider === memberRuntime.provider))
+        setError("成员默认 Runtime 当前不可用，可以临时选择其他运行环境。");
+    }
     else setError(r.error);
   }
   const invocation = () => ({
     useMemory,
     useKnowledge,
-    ...(runtimeKey === "select"
+    ...(runtimeKey === "member-default" ? { runtimeMode: "member" as const } : runtimeKey === "select"
       ? {}
       : {
+          runtimeMode: "manual" as const,
           runtime: {
             nodeId: runtimeKey.split("::")[0]!,
             provider: runtimeKey.split("::")[1]!,
@@ -573,7 +615,7 @@ export function Communications({
                   {directory.rooms.length} 段共同的工作记录
                 </p>
               </div>
-              <NewConversation agents={directory.agents} />
+              <NewConversation directory={directory} />
             </header>
             <div className="relative m-3">
               <Search className="absolute top-2.5 left-3 size-3.5 text-muted-foreground" />
@@ -682,6 +724,7 @@ export function Communications({
                           邀请成员不会自动触发执行。
                         </DialogDescription>
                       </DialogHeader>
+                      {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                       {state.members.map((m) => (
                         <div
                           key={m.id}
@@ -694,7 +737,7 @@ export function Communications({
                         </div>
                       ))}
                       {state.agents
-                        .filter((a) => !a.joined)
+                        .filter((a) => !a.joined && !a.roleId && !/^role-[\da-f]{32}$/.test(a.id))
                         .map((a) => (
                           <Button
                             key={a.id}
@@ -711,6 +754,18 @@ export function Communications({
                             邀请 {a.name}
                           </Button>
                         ))}
+                      {directory.roles.filter(role => !state.agents.some(a => a.roleId === role.id && a.joined)).map(role => (
+                        <Button key={role.id} variant="outline" disabled={sending || active} onClick={async () => {
+                          setSending(true);
+                          setError("");
+                          try {
+                            const result = await inviteConversation(selected.id, `role:${role.id}`);
+                            if (!result.ok) setError(result.error);
+                            await refresh();
+                          } catch { setError("邀请结果待核对，请刷新原会话后继续。"); }
+                          finally { setSending(false); }
+                        }}>邀请 {role.name}</Button>
+                      ))}
                     </DialogContent>
                   </Dialog>
                   <Button
@@ -756,16 +811,20 @@ export function Communications({
                             onOpenChange={(v) => {
                               if (v) void discover();
                             }}
-                            onValueChange={setRuntimeKey}
+                            onValueChange={(value) => {
+                              if (value === "select" || (value === "member-default" && memberRuntime) || runtimes.some(r => `${r.nodeId}::${r.provider}` === value))
+                                setRuntimeKey(value);
+                            }}
                             disabled={sending || active}
                           >
                             <SelectTrigger className="h-7 w-auto max-w-60 border-0 bg-transparent px-1.5 text-xs shadow-none">
-                              <SelectValue />
+                              <SelectValue placeholder="选择运行环境">{runtimeKey === "member-default" && memberRuntime ? `成员默认 · ${memberRuntime.label}` : runtimes.find(r => `${r.nodeId}::${r.provider}` === runtimeKey) ? `临时 · ${runtimes.find(r => `${r.nodeId}::${r.provider}` === runtimeKey)!.label}` : "选择运行环境"}</SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="select">
                                 选择运行环境
                               </SelectItem>
+                              {memberRuntime && <SelectItem value="member-default">成员默认 · {memberRuntime.label}</SelectItem>}
                               {runtimes.map((r) => (
                                 <SelectItem
                                   key={r.nodeId + "::" + r.provider}
@@ -863,7 +922,7 @@ export function Communications({
                 </div>
               </>
             ) : (
-              <Welcome agents={directory.agents} />
+              <Welcome directory={directory} />
             )}
           </section>
         </div>

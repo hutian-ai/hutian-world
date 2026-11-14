@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { memberHref } from "@/lib/member-navigation";
+import { RoleChatButton } from "@/components/role-chat-button";
 
 export type MemberSummary = { id: string; name: string; description: string; owner?: boolean };
 
@@ -88,11 +89,11 @@ export function MemberDirectory({ members, query }: { members: MemberSummary[]; 
                   <span className="line-clamp-2 leading-5 [overflow-wrap:anywhere]">{member.description || "暂无职责说明"}</span>
                 </TableCell>
                 <TableCell className="pr-4 text-right">
-                  {!member.owner && <Button asChild size="sm" variant="outline">
+                  {!member.owner && <div className="flex items-start justify-end gap-2"><RoleChatButton roleId={member.id} variant="outline" /><Button asChild size="sm" variant="outline">
                     <Link href={memberHref(`/members/${member.id}`, query, { view: "settings", section: "general" })} aria-label={`配置${member.name}`}>
                       <Settings2 data-icon="inline-start" />配置
                     </Link>
-                  </Button>}
+                  </Button></div>}
                 </TableCell>
               </TableRow>
             ))}

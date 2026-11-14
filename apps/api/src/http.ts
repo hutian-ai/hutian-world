@@ -6,7 +6,7 @@ import type { ArgumentsHost, CanActivate, ExceptionFilter, ExecutionContext } fr
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { timingSafeEqual } from "node:crypto";
 import { ZodError } from "zod";
-import { projectInput, roleInput, createRoleInput } from "@hutian-world/contracts";
+import { projectInput, roleInput, createRoleInput, roleChatIdentityInput, roleRuntimeBindingInput } from "@hutian-world/contracts";
 import type { Environment } from "./environment.js";
 import { WorkspaceService } from "./workspace.service.js";
 
@@ -40,6 +40,8 @@ export class WorkspaceController {
   @Patch("projects/:id") updateProject(@Param("id", new ParseUUIDPipe()) id: string, @Body() body: unknown) { return this.service.updateProject(id, projectInput.parse(body)); }
   @Post("roles") createRole(@Body() body: unknown) { return this.service.createRole(createRoleInput.parse(body)); }
   @Patch("roles/:id") updateRole(@Param("id", new ParseUUIDPipe()) id: string, @Body() body: unknown) { return this.service.updateRole(id, roleInput.parse(body)); }
+  @Put("roles/:id/chat-identity") bindRoleChat(@Param("id", new ParseUUIDPipe()) id: string, @Body() body: unknown) { return this.service.bindRoleChat(id, roleChatIdentityInput.parse(body)); }
+  @Put("roles/:id/runtime") setRoleRuntime(@Param("id", new ParseUUIDPipe()) id: string, @Body() body: unknown) { return this.service.setRoleRuntime(id, roleRuntimeBindingInput.parse(body)); }
   @Put("projects/:projectId/roles/:roleId") addRole(@Param("projectId", new ParseUUIDPipe()) projectId: string, @Param("roleId", new ParseUUIDPipe()) roleId: string) { return this.service.membership(projectId, roleId, false); }
   @Delete("projects/:projectId/roles/:roleId") removeRole(@Param("projectId", new ParseUUIDPipe()) projectId: string, @Param("roleId", new ParseUUIDPipe()) roleId: string) { return this.service.membership(projectId, roleId, true); }
 }
