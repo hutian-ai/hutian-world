@@ -6,45 +6,110 @@ import { dirname, resolve, extname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const app = createRequire(new URL("../../apps/web/package.json", import.meta.url));
-const [{ default: React }, { renderToStaticMarkup }, { default: Markdown }, { default: remarkGfm }] =
-  await Promise.all([
-    import(pathToFileURL(app.resolve("react"))),
-    import(pathToFileURL(app.resolve("react-dom/server"))),
-    import(pathToFileURL(app.resolve("react-markdown"))),
-    import(pathToFileURL(app.resolve("remark-gfm"))),
-  ]);
+const app = createRequire(
+  new URL("../../apps/web/package.json", import.meta.url),
+);
+const [
+  { default: React },
+  { renderToStaticMarkup },
+  { default: Markdown },
+  { default: remarkGfm },
+] = await Promise.all([
+  import(pathToFileURL(app.resolve("react"))),
+  import(pathToFileURL(app.resolve("react-dom/server"))),
+  import(pathToFileURL(app.resolve("react-markdown"))),
+  import(pathToFileURL(app.resolve("remark-gfm"))),
+]);
 const h = React.createElement;
 const markdown = await readFile(resolve(here, "TECHNICAL.md"), "utf8");
-const headings = [...markdown.matchAll(/^## (.+)$/gm)].map((m, i) => ({ title: m[1], id: `chapter-${i + 1}` }));
-const imagePaths = [...markdown.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g)].map((m) => m[1]);
+const headings = [...markdown.matchAll(/^## (.+)$/gm)].map((m, i) => ({
+  title: m[1],
+  id: `chapter-${i + 1}`,
+}));
+const imagePaths = [
+  ...markdown.matchAll(/!\[[^\]]*\]\((assets\/[^)]+)\)/g),
+].map((m) => m[1]);
 const diagramCount = imagePaths.filter((path) => path.endsWith(".svg")).length;
 const screenshotCount = imagePaths.length - diagramCount;
-const images = new Map(await Promise.all(imagePaths.map(async (path) => [
-  path,
-  `data:${extname(path) === ".svg" ? "image/svg+xml" : "image/png"};base64,${(await readFile(resolve(here, path))).toString("base64")}`,
-])));
+const images = new Map(
+  await Promise.all(
+    imagePaths.map(async (path) => [
+      path,
+      `data:${extname(path) === ".svg" ? "image/svg+xml" : "image/png"};base64,${(await readFile(resolve(here, path))).toString("base64")}`,
+    ]),
+  ),
+);
 
-const content = renderToStaticMarkup(h(Markdown, {
-  remarkPlugins: [remarkGfm],
-  components: {
-    h2: ({ children }) => h("h2", { id: headings.find((x) => x.title === String(children))?.id }, children),
-    img: ({ src, alt }) => h("button", { className: "image-open", type: "button", "aria-label": `放大查看：${alt}` },
-      h("img", { src: images.get(src), alt, loading: "lazy" })),
-    a: ({ href, children }) => {
-      if (href?.startsWith("http")) return h("a", { href, target: "_blank", rel: "noreferrer" }, children);
-      if (href?.endsWith(".html")) return h("a", { href, target: "_blank", rel: "noreferrer" }, children);
-      const [path, fragment] = (href ?? "").split("#");
-      const line = fragment?.match(/^L(\d+)$/)?.[1];
-      return h("button", { className: "source-link", type: "button", "data-source": resolve(here, path) + (line ? `:${line}` : ""), title: "复制本机文件路径与行号" }, children);
+const content = renderToStaticMarkup(
+  h(
+    Markdown,
+    {
+      remarkPlugins: [remarkGfm],
+      components: {
+        h2: ({ children }) =>
+          h(
+            "h2",
+            { id: headings.find((x) => x.title === String(children))?.id },
+            children,
+          ),
+        img: ({ src, alt }) =>
+          h(
+            "button",
+            {
+              className: "image-open",
+              type: "button",
+              "aria-label": `放大查看：${alt}`,
+            },
+            h("img", { src: images.get(src), alt, loading: "lazy" }),
+          ),
+        a: ({ href, children }) => {
+          if (href?.startsWith("http"))
+            return h(
+              "a",
+              { href, target: "_blank", rel: "noreferrer" },
+              children,
+            );
+          if (href?.endsWith(".html"))
+            return h(
+              "a",
+              { href, target: "_blank", rel: "noreferrer" },
+              children,
+            );
+          const [path, fragment] = (href ?? "").split("#");
+          const line = fragment?.match(/^L(\d+)$/)?.[1];
+          return h(
+            "button",
+            {
+              className: "source-link",
+              type: "button",
+              "data-source": resolve(here, path) + (line ? `:${line}` : ""),
+              title: "复制本机文件路径与行号",
+            },
+            children,
+          );
+        },
+        pre: ({ children }) =>
+          h(
+            "div",
+            { className: "code-block" },
+            h("button", { type: "button", className: "copy-code" }, "复制"),
+            h("pre", null, children),
+          ),
+        table: ({ children }) =>
+          h("div", { className: "table-scroll" }, h("table", null, children)),
+      },
     },
-    pre: ({ children }) => h("div", { className: "code-block" },
-      h("button", { type: "button", className: "copy-code" }, "复制"), h("pre", null, children)),
-    table: ({ children }) => h("div", { className: "table-scroll" }, h("table", null, children)),
-  },
-}, markdown));
-const escape = (s) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
-const toc = headings.map((x, i) => `<a href="#${x.id}"><span>${String(i + 1).padStart(2, "0")}</span>${escape(x.title.replace(/^\d+\. /, ""))}</a>`).join("\n");
+    markdown,
+  ),
+);
+const escape = (s) =>
+  s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll('"', "&quot;");
+const toc = headings
+  .map(
+    (x, i) =>
+      `<a href="#${x.id}"><span>${String(i + 1).padStart(2, "0")}</span>${escape(x.title.replace(/^\d+\. /, ""))}</a>`,
+  )
+  .join("\n");
 
 const html = `<!doctype html>
 <html lang="zh-CN">
@@ -92,4 +157,6 @@ document.querySelectorAll('article h2').forEach(el=>observer.observe(el));
 </script>
 </body></html>`;
 await writeFile(resolve(here, "index.html"), html);
-console.log(`Built illustrated guide: ${headings.length} chapters, ${images.size} images, ${(Buffer.byteLength(html) / 1024).toFixed(0)} KiB`);
+console.log(
+  `Built illustrated guide: ${headings.length} chapters, ${images.size} images, ${(Buffer.byteLength(html) / 1024).toFixed(0)} KiB`,
+);

@@ -8,7 +8,7 @@ import {
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@/components/ui/empty";
+} from "@hutian-ai/design/ui/empty";
 
 export function EmptyState({
   title,

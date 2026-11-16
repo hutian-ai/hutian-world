@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from "@hutian-ai/design/ui/badge";
+import { cn } from "@hutian-ai/design/lib/utils";
 
 export function Panel({
   title,
@@ -22,7 +22,9 @@ export function Panel({
       <header className="panel-header">
         <div>
           <h2 className="panel-title">{title}</h2>
-          {description ? <p className="panel-description">{description}</p> : null}
+          {description ? (
+            <p className="panel-description">{description}</p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           {count ? <Badge variant="outline">{count}</Badge> : null}

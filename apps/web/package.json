@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev --hostname 127.0.0.1 --port 3340",
-    "build": "next build --turbopack",
-    "start": "next start --hostname 127.0.0.1 --port 3340",
+    "dev": "vite --host 127.0.0.1 --port 3340",
+    "build": "node scripts/build.mjs",
+    "rollback": "node scripts/build.mjs --rollback",
+    "start": "node scripts/serve.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -14,14 +15,11 @@
     "@assistant-ui/react-lexical": "0.2.11",
     "@assistant-ui/react-markdown": "0.14.13",
     "@fullcalendar/react": "7.1.0",
-    "@harness-dock/client": "https://github.com/hutian-ai/harness-dock/releases/download/sdk-v0.1.2/harness-dock-sdk-0.1.2.tgz",
     "@hutian-world/contracts": "workspace:*",
-    "c12": "3.3.3",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
     "lucide-react": "1.37.0",
-    "next": "16.4.5",
     "next-themes": "0.4.6",
     "radix-ui": "1.4.3",
     "react": "19.2.8",
@@ -36,12 +34,16 @@
     "tw-shimmer": "0.4.12",
     "vaul": "1.1.2",
     "zod": "4.4.3",
-    "zustand": "5.0.15"
+    "zustand": "5.0.15",
+    "react-router-dom": "7.18.5",
+    "@hutian-ai/design": "link:../../../hutian-design"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
-    "tailwindcss": "4.3.3"
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.5",
+    "@vitejs/plugin-react": "6.3.0"
   }
 }

@@ -1,0 +1,67 @@
+import {
+  unstable_defaultDirectiveFormatter as base,
+  type Unstable_DirectiveFormatter,
+} from "@assistant-ui/react";
+
+// Keep stable member IDs in the composer's existing text storage. The submitted
+// Matrix body is human readable; addressing is separate, verified metadata.
+const protectedText =
+  /```[\s\S]*?(?:```|$)|`[^`\n]*`|https?:\/\/\S+|\[[^\]\n]*\]\([^\n)]*\)/gu;
+export const memberMentionFormatter: Unstable_DirectiveFormatter = {
+  serialize: (item) => base.serialize(item),
+  parse(text) {
+    const result: Array<
+      ReturnType<Unstable_DirectiveFormatter["parse"]>[number]
+    > = [];
+    const parse = (part: string) =>
+      result.push(
+        ...base
+          .parse(part)
+          .map((segment) =>
+            segment.kind === "mention" && segment.type !== "member"
+              ? { kind: "text" as const, text: base.serialize({ ...segment }) }
+              : segment,
+          ),
+      );
+    let end = 0;
+    for (const match of text.matchAll(protectedText)) {
+      parse(text.slice(end, match.index));
+      result.push({ kind: "text", text: match[0] });
+      end = match.index + match[0].length;
+    }
+    parse(text.slice(end));
+    return result;
+  },
+};
+export function memberMentionMatcher(
+  text: string,
+  char: string,
+  cursor: number,
+) {
+  const prefix = text.slice(0, cursor),
+    offset = prefix.lastIndexOf(char);
+  if (offset < 0 || /\s/u.test(prefix.slice(offset + char.length))) return null;
+  if (offset && /[A-Za-z0-9_.+\-]/u.test(prefix[offset - 1]!)) return null;
+  if (
+    (prefix.match(/`/g)?.length ?? 0) % 2 ||
+    prefix.lastIndexOf("](") > prefix.lastIndexOf(")") ||
+    /^\s*>/.test(prefix.split("\n").at(-1) ?? "")
+  )
+    return null;
+  return {
+    query: prefix.slice(offset + char.length),
+    offset,
+    endOffset: cursor,
+  };
+}
+export function composerMessage(raw: string) {
+  const segments = memberMentionFormatter.parse(raw);
+  return {
+    text: segments
+      .map((s) => (s.kind === "text" ? s.text : `@${s.label}`))
+      .join(""),
+    ids: [
+      ...new Set(segments.flatMap((s) => (s.kind === "mention" ? [s.id] : []))),
+    ],
+  };
+}

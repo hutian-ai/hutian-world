@@ -1,15 +1,43 @@
 {
-  "name": "hutian-world", "private": true, "type": "module", "version": "0.1.0",
-  "packageManager": "pnpm@11.24.0", "engines": {"node": ">=22.19.0"},
+  "name": "hutian-world",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
-    "dev": "pnpm --filter @hutian-world/contracts build && pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm --filter @hutian-world/contracts build && pnpm -r typecheck",
+    "dev": "pnpm design:build && pnpm --filter @hutian-world/contracts build && pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web dev",
+    "build": "pnpm design:build && pnpm -r build",
+    "typecheck": "pnpm design:build && pnpm --filter @hutian-world/contracts build && pnpm -r typecheck",
     "start": "pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web start",
+    "services:start": "node scripts/local-services.mjs start",
+    "services:stop": "node scripts/local-services.mjs stop",
+    "services:status": "node scripts/local-services.mjs status",
     "resources:setup": "node scripts/setup-resource-scopes.mjs",
     "setup:local": "node scripts/setup-local.mjs",
     "db:migrate": "pnpm --filter @hutian-world/contracts build && pnpm --filter @hutian-world/api db:migrate",
-    "access:setup": "pnpm --filter @hutian-world/contracts build && node scripts/setup-access-bindings.mjs"
+    "access:setup": "pnpm --filter @hutian-world/contracts build && node scripts/setup-access-bindings.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write --ignore-unknown .",
+    "format:check": "prettier --check --ignore-unknown .",
+    "prepare": "husky",
+    "lint:staged": "lint-staged",
+    "design:build": "pnpm --dir ../hutian-design build",
+    "design:dev": "pnpm --dir ../hutian-design dev"
   },
-  "devDependencies": {"pg": "8.22.0", "typescript": "6.0.3", "@types/node": "24.13.3"}
+  "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.4",
+    "globals": "17.11.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
+    "pg": "8.22.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.68.0"
+  }
 }

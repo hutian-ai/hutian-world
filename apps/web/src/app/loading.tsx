@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@hutian-ai/design/ui/skeleton";
 export default function Loading() {
   return (
     <div className="flex h-dvh" role="status" aria-label="正在读取工作台">

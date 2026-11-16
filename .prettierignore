@@ -1,0 +1,9 @@
+node_modules/
+.local/
+.next/
+dist/
+.agents/
+*.tsbuildinfo
+pnpm-lock.yaml
+**/*.md
+**/*.sql

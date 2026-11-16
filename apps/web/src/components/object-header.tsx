@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@hutian-ai/design/lib/utils";
 
 export function ObjectHeader({
   path,
@@ -29,7 +29,9 @@ export function ObjectHeader({
           {eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}
           <h1 className="object-header-title">{title}</h1>
           <p className="object-header-description">{description}</p>
-          {metadata ? <div className="object-header-metadata">{metadata}</div> : null}
+          {metadata ? (
+            <div className="object-header-metadata">{metadata}</div>
+          ) : null}
         </div>
         {action ? <div className="object-header-action">{action}</div> : null}
       </div>

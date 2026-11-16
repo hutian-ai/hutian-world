@@ -1,5 +1,5 @@
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Badge } from "@hutian-ai/design/ui/badge";
+import { cn } from "@hutian-ai/design/lib/utils";
 
 const positive = new Set([
   "active",
@@ -45,7 +45,13 @@ export function statusTone(value: string): StatusTone {
   return "neutral";
 }
 
-export function StatusBadge({ value, label }: { value: string; label: string }) {
+export function StatusBadge({
+  value,
+  label,
+}: {
+  value: string;
+  label: string;
+}) {
   const tone = statusTone(value);
   return (
     <Badge
@@ -53,7 +59,8 @@ export function StatusBadge({ value, label }: { value: string; label: string }) 
       className={cn(
         tone === "positive" && "border-primary/30 bg-primary/10 text-primary",
         tone === "warning" && "border-warning/30 bg-warning/10 text-warning",
-        tone === "danger" && "border-destructive/30 bg-destructive/10 text-destructive",
+        tone === "danger" &&
+          "border-destructive/30 bg-destructive/10 text-destructive",
       )}
     >
       {label}

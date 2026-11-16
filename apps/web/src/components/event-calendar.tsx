@@ -1,14 +1,17 @@
 "use client";
 
 // Adopted via the official FullCalendar shadcn registry, Forma, v7.1.0 (MIT).
-import { type CalendarOptions, useCalendarController } from "@fullcalendar/react";
+import {
+  type CalendarOptions,
+  useCalendarController,
+} from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/react/daygrid";
 import interactionPlugin from "@fullcalendar/react/interaction";
 import listPlugin from "@fullcalendar/react/list";
 import { EventCalendarToolbar } from "@/components/event-calendar-toolbar";
-import { EventCalendarViews } from "@/components/ui/event-calendar-views";
+import { EventCalendarViews } from "@hutian-ai/design/ui/event-calendar-views";
 import { EventCalendarCloseIcon } from "@/components/event-calendar-icons";
-import { cn } from "@/lib/utils";
+import { cn } from "@hutian-ai/design/lib/utils";
 
 const plugins = [dayGridPlugin, listPlugin, interactionPlugin];
 const defaultAvailableViews = ["dayGridWeek", "dayGridMonth", "listWeek"];
@@ -20,6 +23,7 @@ export interface EventCalendarProps extends Omit<
   "class" | "className" | "headerToolbar" | "footerToolbar"
 > {
   className?: string;
+  scrollGrid?: boolean;
   availableViews?: string[];
   addButton?: {
     isPrimary?: boolean;
@@ -34,6 +38,7 @@ export function EventCalendar({
   addButton,
   direction,
   className,
+  scrollGrid = false,
   height,
   contentHeight,
   plugins: userPlugins = [],
@@ -43,7 +48,9 @@ export function EventCalendar({
 
   const hasBorderX = !(restOptions.borderlessX ?? restOptions.borderless);
   const hasBorderTop = !(restOptions.borderlessTop ?? restOptions.borderless);
-  const hasBorderBottom = !(restOptions.borderlessBottom ?? restOptions.borderless);
+  const hasBorderBottom = !(
+    restOptions.borderlessBottom ?? restOptions.borderless
+  );
   const isHeightAuto = height === "auto" || contentHeight === "auto";
 
   return (
@@ -68,17 +75,30 @@ export function EventCalendar({
         availableViews={availableViews}
         addButton={addButton}
       />
-      <div className="grow min-h-0">
-        <EventCalendarViews
-          controller={controller}
-          height={isHeightAuto ? "auto" : height !== undefined ? "100%" : contentHeight}
-          initialView={availableViews[0]}
-          navLinkDayClick={navLinkDayClick}
-          navLinkWeekClick={navLinkWeekClick}
-          plugins={[...plugins, ...userPlugins]}
-          popoverCloseContent={() => <EventCalendarCloseIcon />}
-          {...restOptions}
-        />
+      <div
+        className={cn("grow min-h-0", scrollGrid && "overflow-x-auto")}
+        role={scrollGrid ? "region" : undefined}
+        aria-label={scrollGrid ? "日历日期网格" : undefined}
+        tabIndex={scrollGrid ? 0 : undefined}
+      >
+        <div className={cn("h-full", scrollGrid && "min-w-[840px]")}>
+          <EventCalendarViews
+            controller={controller}
+            height={
+              isHeightAuto
+                ? "auto"
+                : height !== undefined
+                  ? "100%"
+                  : contentHeight
+            }
+            initialView={availableViews[0]}
+            navLinkDayClick={navLinkDayClick}
+            navLinkWeekClick={navLinkWeekClick}
+            plugins={[...plugins, ...userPlugins]}
+            popoverCloseContent={() => <EventCalendarCloseIcon />}
+            {...restOptions}
+          />
+        </div>
       </div>
     </div>
   );

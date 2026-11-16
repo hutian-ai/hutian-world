@@ -28,7 +28,9 @@ export function OrganizationMarkdown({
           ),
           table: ({ children }) => (
             <div className="my-3 max-w-full overflow-x-auto">
-              <table className="w-full border-collapse text-left">{children}</table>
+              <table className="w-full border-collapse text-left">
+                {children}
+              </table>
             </div>
           ),
           th: ({ children, style }) => (

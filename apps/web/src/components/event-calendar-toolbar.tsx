@@ -2,10 +2,13 @@
 
 // Adopted via the official FullCalendar shadcn registry, Forma, v7.1.0 (MIT).
 import type { CalendarController } from "@fullcalendar/react";
-import { EventCalendarNextIcon, EventCalendarPrevIcon } from "@/components/event-calendar-icons";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import {
+  EventCalendarNextIcon,
+  EventCalendarPrevIcon,
+} from "@/components/event-calendar-icons";
+import { Button } from "@hutian-ai/design/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@hutian-ai/design/ui/tabs";
+import { cn } from "@hutian-ai/design/lib/utils";
 
 export interface EventCalendarToolbarProps {
   className?: string;
@@ -38,8 +41,13 @@ export function EventCalendarToolbar({
   ];
 
   return (
-    <div className={cn("flex items-center justify-between flex-wrap gap-3", className)}>
-      <div className="flex items-center shrink-0 gap-3">
+    <div
+      className={cn(
+        "flex items-center justify-between flex-wrap gap-3",
+        className,
+      )}
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
         {addButton && (
           <Button onClick={addButton.click} aria-label={addButton.hint}>
             {addButton.text}
@@ -72,9 +80,14 @@ export function EventCalendarToolbar({
             <EventCalendarNextIcon />
           </Button>
         </div>
-        <div className="text-base font-semibold">{controller.view?.title}</div>
+        <div className="min-w-0 text-sm font-semibold sm:text-base">
+          {controller.view?.title}
+        </div>
       </div>
-      <Tabs value={viewType} onValueChange={(view) => controller.changeView(view)}>
+      <Tabs
+        value={viewType}
+        onValueChange={(view) => controller.changeView(view)}
+      >
         <TabsList>
           {availableViews.map((availableView) => (
             <TabsTrigger
@@ -83,10 +96,11 @@ export function EventCalendarToolbar({
               aria-label={buttons[availableView]?.hint}
             >
               {(
-                { dayGridWeek: "周", dayGridMonth: "月", listWeek: "日程" } as Record<
-                  string,
-                  string
-                >
+                {
+                  dayGridWeek: "周",
+                  dayGridMonth: "月",
+                  listWeek: "日程",
+                } as Record<string, string>
               )[availableView] ?? buttons[availableView]?.text}
             </TabsTrigger>
           ))}

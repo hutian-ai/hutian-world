@@ -3,13 +3,20 @@
 import { Bold, Code, Heading2, Italic, Link, List, Quote } from "lucide-react";
 import { useRef, useState } from "react";
 import { OrganizationMarkdown } from "@/components/organization-markdown";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { markdownEdit, type MarkdownFormat } from "@/lib/organization-markdown-edit";
-import { cn } from "@/lib/utils";
+import { Button } from "@hutian-ai/design/ui/button";
+import { Label } from "@hutian-ai/design/ui/label";
+import { Switch } from "@hutian-ai/design/ui/switch";
+import { Textarea } from "@hutian-ai/design/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@hutian-ai/design/ui/tooltip";
+import {
+  markdownEdit,
+  type MarkdownFormat,
+} from "@/lib/organization-markdown-edit";
+import { cn } from "@hutian-ai/design/lib/utils";
 
 const formats = [
   { value: "heading", label: "标题", icon: Heading2 },
@@ -48,8 +55,16 @@ export function OrganizationMarkdownEditor({
   function applyFormat(format: MarkdownFormat) {
     const input = textarea.current;
     if (!input || disabled) return;
-    const change = markdownEdit(input.value, input.selectionStart, input.selectionEnd, format);
-    if (input.value.length - (change.to - change.from) + change.text.length > maxLength) {
+    const change = markdownEdit(
+      input.value,
+      input.selectionStart,
+      input.selectionEnd,
+      format,
+    );
+    if (
+      input.value.length - (change.to - change.from) + change.text.length >
+      maxLength
+    ) {
       setFormatError(`添加格式会超过 ${maxLength} 字符，请先缩短内容。`);
       return;
     }
@@ -74,30 +89,36 @@ export function OrganizationMarkdownEditor({
           aria-label={`${label}格式`}
           className="flex flex-wrap items-center gap-0.5"
         >
-          {formats.map(({ value: format, label: formatLabel, icon: Icon, ...rest }) => (
-            <Tooltip key={format}>
-              <TooltipTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={formatLabel}
-                  disabled={disabled}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => applyFormat(format)}
-                >
-                  <Icon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {formatLabel}
-                {"shortcut" in rest ? `（${rest.shortcut}）` : ""}
-              </TooltipContent>
-            </Tooltip>
-          ))}
+          {formats.map(
+            ({ value: format, label: formatLabel, icon: Icon, ...rest }) => (
+              <Tooltip key={format}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={formatLabel}
+                    disabled={disabled}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => applyFormat(format)}
+                  >
+                    <Icon />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {formatLabel}
+                  {"shortcut" in rest ? `（${rest.shortcut}）` : ""}
+                </TooltipContent>
+              </Tooltip>
+            ),
+          )}
         </div>
         <div className="flex items-center gap-2 px-1">
-          <Switch id={`${id}-preview`} checked={preview} onCheckedChange={setPreview} />
+          <Switch
+            id={`${id}-preview`}
+            checked={preview}
+            onCheckedChange={setPreview}
+          />
           <Label htmlFor={`${id}-preview`} className="cursor-pointer">
             实时预览
           </Label>
@@ -143,11 +164,15 @@ export function OrganizationMarkdownEditor({
             aria-label={`${label}预览`}
             className="max-h-[calc(60dvh+1rem)] min-w-0 overflow-auto border-t p-4 lg:border-t-0 lg:border-l"
           >
-            <p className="mb-3 text-xs text-muted-foreground">预览{dirty ? " · 未保存" : ""}</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              预览{dirty ? " · 未保存" : ""}
+            </p>
             {value.trim() ? (
               <OrganizationMarkdown content={value} />
             ) : (
-              <p className="text-sm text-muted-foreground">开始输入后，这里会实时显示排版效果。</p>
+              <p className="text-sm text-muted-foreground">
+                开始输入后，这里会实时显示排版效果。
+              </p>
             )}
           </section>
         )}

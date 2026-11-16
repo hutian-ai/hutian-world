@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link from "@/lib/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   BookOpen,
@@ -11,9 +11,9 @@ import {
   ArrowUpRight,
   Upload,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@hutian-ai/design/ui/button";
+import { Input } from "@hutian-ai/design/ui/input";
+import { Textarea } from "@hutian-ai/design/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+} from "@hutian-ai/design/ui/dialog";
+import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
 import { OrganizationMarkdown } from "@/components/organization-markdown";
 import {
   findResources,
@@ -58,6 +58,8 @@ export function ResourceWorkspace({
   const [documents, setDocuments] = useState<Document[]>([]);
   const [selected, setSelected] = useState<Document>();
   const [content, setContent] = useState("");
+  const [sourceVersion, setSourceVersion] = useState("");
+  const selectedSource = useRef("");
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState("");
@@ -71,12 +73,19 @@ export function ResourceWorkspace({
   const [notice, setNotice] = useState("");
   const retry = useRef<{ key: string; id: string } | null>(null);
   async function choose(doc: Document) {
+    selectedSource.current = doc.id;
     setSelected(doc);
     setContent(doc.content ?? "");
+    setSourceVersion(isMemory ? "" : "1");
     if (isMemory) {
       const r = await readMemorySource(doc.id, scope);
-      if (r.ok) setContent(String(r.data.original_text ?? "原文暂不可读取。"));
-      else setError(r.error);
+      if (selectedSource.current !== doc.id) return;
+      if (r.ok) {
+        setContent(String(r.data.original_text ?? "原文暂不可读取。"));
+        setSourceVersion(
+          String(r.data.document_metadata?.source_version ?? ""),
+        );
+      } else setError(r.error);
     }
   }
   async function load() {
@@ -112,7 +121,7 @@ export function ResourceWorkspace({
           setPending("");
           setNotice(
             status === "completed"
-              ? "整理完成，现在可以在对话中检索这条记忆。"
+              ? "记忆整理已完成；能否召回以实际检索结果为准。"
               : "整理未完成，原操作保留，请核对后再继续。",
           );
           void load();
@@ -131,11 +140,15 @@ export function ResourceWorkspace({
     setBusy(true);
     setError("");
     try {
-      const r = await saveResource(kind, {
-        id: req.id,
-        title: name,
-        content: text,
-      }, scope);
+      const r = await saveResource(
+        kind,
+        {
+          id: req.id,
+          title: name,
+          content: text,
+        },
+        scope,
+      );
       if (!r.ok) {
         setError(r.error);
         return;
@@ -178,7 +191,9 @@ export function ResourceWorkspace({
           <Icon className="size-4" />
         </span>
         <div className="flex-1">
-          <h1 className="text-sm font-semibold">{title} · {scopeLabel}</h1>
+          <h1 className="text-sm font-semibold">
+            {title} · {scopeLabel}
+          </h1>
           <p className="text-xs text-muted-foreground">
             {isMemory
               ? "保存明确的偏好与决定，让下一次对话接着往前。"
@@ -216,7 +231,12 @@ export function ResourceWorkspace({
                   : "原文先持久保存，再交给知识服务建立索引。保存后仅在所选范围内检索。"}
               </DialogDescription>
             </DialogHeader>
-            <p className="text-xs text-muted-foreground">保存到：{scopeLabel}{scope.kind === "conversation" ? "。本会话成员可使用，请确认内容可以共享。" : "。不会自动提供给其他角色或会话。"}</p>
+            <p className="text-xs text-muted-foreground">
+              保存到：{scopeLabel}
+              {scope.kind === "conversation"
+                ? "。本会话成员可使用，请确认内容可以共享。"
+                : "。不会自动提供给其他角色或会话。"}
+            </p>
             <Input
               aria-label="标题"
               placeholder={isMemory ? "例如：我的沟通偏好" : "资料名称"}
@@ -377,7 +397,12 @@ export function ResourceWorkspace({
           ) : selected ? (
             <>
               <p className="mb-2 text-xs text-muted-foreground">
-                {isMemory ? "记忆来源原文" : "Markdown 原文"} · 版本 1
+                {isMemory ? "记忆来源原文" : "Markdown 原文"} ·{" "}
+                <span title={sourceVersion}>
+                  {sourceVersion
+                    ? `版本 ${sourceVersion.length > 16 ? sourceVersion.slice(0, 12) : sourceVersion}`
+                    : "版本未提供"}
+                </span>
               </p>
               <h2 className="mb-5 text-xl font-medium">{selected.title}</h2>
               <OrganizationMarkdown content={content} />

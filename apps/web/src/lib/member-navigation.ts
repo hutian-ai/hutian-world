@@ -7,7 +7,11 @@ export function memberOwnerName(displayName: string) {
   return !name || name === "我的工作台" ? "我" : name;
 }
 
-export function memberHref(path: string, query: string, options: Record<string, string> = {}) {
+export function memberHref(
+  path: string,
+  query: string,
+  options: Record<string, string> = {},
+) {
   const params = new URLSearchParams(options);
   if (query) params.set("q", query);
   const search = params.toString();

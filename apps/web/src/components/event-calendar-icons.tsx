@@ -1,8 +1,13 @@
 "use client";
 
 // Adopted via the official FullCalendar shadcn registry, Forma, v7.1.0 (MIT).
-import { XIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  XIcon,
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from "lucide-react";
+import { cn } from "@hutian-ai/design/lib/utils";
 
 export function EventCalendarPrevIcon() {
   return <ChevronLeftIcon className="[[dir=rtl]_&]:rotate-180" />;
