@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { cn } from "@hutian-ai/design/lib/utils";
 
 export function ObjectHeader({
-  path,
   media,
   eyebrow,
   title,
@@ -11,7 +10,6 @@ export function ObjectHeader({
   action,
   className,
 }: {
-  path?: ReactNode;
   media?: ReactNode;
   eyebrow?: string;
   title: string;
@@ -22,7 +20,6 @@ export function ObjectHeader({
 }) {
   return (
     <header className={cn("object-header", className)}>
-      {path ? <div className="object-header-path">{path}</div> : null}
       <div className="object-header-main">
         {media ? <div className="object-header-media">{media}</div> : null}
         <div className="min-w-0 flex-1">

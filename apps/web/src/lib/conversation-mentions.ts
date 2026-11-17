@@ -41,7 +41,7 @@ export function memberMentionMatcher(
   const prefix = text.slice(0, cursor),
     offset = prefix.lastIndexOf(char);
   if (offset < 0 || /\s/u.test(prefix.slice(offset + char.length))) return null;
-  if (offset && /[A-Za-z0-9_.+\-]/u.test(prefix[offset - 1]!)) return null;
+  if (offset && /[A-Za-z0-9_.+-]/u.test(prefix[offset - 1]!)) return null;
   if (
     (prefix.match(/`/g)?.length ?? 0) % 2 ||
     prefix.lastIndexOf("](") > prefix.lastIndexOf(")") ||
@@ -63,5 +63,81 @@ export function composerMessage(raw: string) {
     ids: [
       ...new Set(segments.flatMap((s) => (s.kind === "mention" ? [s.id] : []))),
     ],
+  };
+}
+
+export type MessageMention = { id: string; name: string };
+type MarkdownNode = {
+  type: string;
+  value?: string;
+  children?: MarkdownNode[];
+};
+
+/** Render only persisted m.mentions identities; this never addresses a request. */
+export function messageMentionPlugin(members: readonly MessageMention[]) {
+  const labels = members
+    .flatMap((member) => {
+      const duplicate = members.some(
+        (other) => other.id !== member.id && other.name === member.name,
+      );
+      return [
+        { ...member, label: `${member.name}（${member.id.slice(-6)}）` },
+        ...(!duplicate ? [{ ...member, label: member.name }] : []),
+      ];
+    })
+    .sort((a, b) => b.label.length - a.label.length);
+  return () => (tree: MarkdownNode) => {
+    const visit = (parent: MarkdownNode) => {
+      if (
+        !parent.children ||
+        ["code", "inlineCode", "link", "linkReference", "html"].includes(
+          parent.type,
+        )
+      )
+        return;
+      parent.children = parent.children.flatMap((child): MarkdownNode[] => {
+        if (child.type !== "text" || !child.value) {
+          visit(child);
+          return [child];
+        }
+        const text = child.value;
+        const parts: MarkdownNode[] = [];
+        let start = 0;
+        for (let i = 0; i < text.length; i++) {
+          if (
+            text[i] !== "@" ||
+            (i > 0 && /[\p{L}\p{N}_.+-]/u.test(text[i - 1]!))
+          )
+            continue;
+          const member = labels.find(
+            (item) =>
+              text.startsWith(`@${item.label}`, i) &&
+              !/[\p{L}\p{N}_]/u.test(text[i + 1 + item.label.length] ?? ""),
+          );
+          if (!member) continue;
+          if (i > start)
+            parts.push({ type: "text", value: text.slice(start, i) });
+          const label: MarkdownNode & { data: unknown } = {
+            type: "text",
+            value: `@${member.label}`,
+            data: {
+              hName: "span",
+              hProperties: {
+                "data-member-id": member.id,
+                "data-member-label": member.label,
+              },
+            },
+          };
+          parts.push(label);
+          i += member.label.length;
+          start = i + 1;
+        }
+        if (!start) return [child];
+        if (start < text.length)
+          parts.push({ type: "text", value: text.slice(start) });
+        return parts;
+      });
+    };
+    visit(tree);
   };
 }

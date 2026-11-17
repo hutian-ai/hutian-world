@@ -9,6 +9,7 @@ import {
   isRouteErrorResponse,
 } from "react-router-dom";
 import { WorkspaceShell } from "@/components/shell";
+import { PageNavigationProvider } from "@/components/page-navigation";
 import { Toaster } from "@hutian-ai/design/ui/sonner";
 import Loading from "@/app/loading";
 import ErrorPage, { PageResourceError } from "@/app/error";
@@ -26,16 +27,18 @@ const modules = import.meta.glob<{
 function Shell() {
   const workspace = useLoaderData() as Workspace;
   return (
-    <WorkspaceShell
-      owner={workspace.creator.displayName}
-      defaultSidebarOpen={
-        !document.cookie
-          .split(";")
-          .some((v) => v.trim() === "sidebar_state=false")
-      }
-    >
-      <Outlet />
-    </WorkspaceShell>
+    <PageNavigationProvider>
+      <WorkspaceShell
+        owner={workspace.creator.displayName}
+        defaultSidebarOpen={
+          !document.cookie
+            .split(";")
+            .some((v) => v.trim() === "sidebar_state=false")
+        }
+      >
+        <Outlet />
+      </WorkspaceShell>
+    </PageNavigationProvider>
   );
 }
 function Page() {

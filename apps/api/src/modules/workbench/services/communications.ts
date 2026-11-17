@@ -5,6 +5,8 @@ import { requireLocalConnection } from "./access-bindings.js";
 import {
   executionActivitySchema,
   executionPreferences,
+  runtimeDisplayLabel,
+  type RuntimeDeviceNames,
 } from "@hutian-world/contracts";
 
 const agent = z.object({
@@ -303,7 +305,14 @@ export async function readConversation(id: string, cursor?: string) {
       ),
     });
   }
+  const names = await api<RuntimeDeviceNames>("/v1/runtime-devices");
   for (const job of conversation.jobs) {
+    if (job.nodeId)
+      job.runtimeLabel = runtimeDisplayLabel(
+        job.nodeId,
+        job.provider,
+        names.settings.find((n) => n.nodeId === job.nodeId)?.customName,
+      );
     const request = requests.find(
       (r) =>
         r.snapshot.eventId === job.eventId &&

@@ -1,3 +1,4 @@
+import { runtimeDisplayLabel } from "@hutian-world/contracts";
 import { getDockConnection } from "./dock.js";
 
 export type RoleRuntimeChoice = {
@@ -7,20 +8,10 @@ export type RoleRuntimeChoice = {
 };
 
 export function memberRuntimeLabel(
-  machine: { nodeId: string; label?: string; platform?: string },
+  machine: { nodeId: string; customName?: string | null; platform?: string },
   harness: string,
 ) {
-  const platform = (
-    { darwin: "macOS", win32: "Windows", linux: "Linux" } as Record<
-      string,
-      string
-    >
-  )[machine.platform ?? ""];
-  const name = machine.label?.trim() || machine.nodeId;
-  return [platform, name === platform ? "" : name, harness]
-    .filter(Boolean)
-    .join(" · ")
-    .slice(0, 200);
+  return runtimeDisplayLabel(machine.nodeId, harness, machine.customName);
 }
 
 export async function roleRuntimeChoices(): Promise<{

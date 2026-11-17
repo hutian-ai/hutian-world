@@ -26,6 +26,37 @@ function commandText(value: unknown): string {
     return text;
   }
 }
+// MCP results carry readable text alongside their transport envelope.
+function toolOutputText(value: unknown): string {
+  if (typeof value === "string") return value;
+  const output = record(value);
+  const result = record(output.result ?? output);
+  if (Array.isArray(result.content))
+    return result.content
+      .map(record)
+      .filter((part) => part.type === "text" && typeof part.text === "string")
+      .map((part) => part.text)
+      .join("\n\n");
+  return "";
+}
+function toolFailureLabel(
+  tool: Record<string, unknown>,
+  output: string,
+): string {
+  const error = record(tool.error ?? record(tool.rawOutput).error).message;
+  const reason =
+    typeof error === "string"
+      ? error
+      : tool.type === "mcpToolCall"
+        ? output.trim().split("\n")[0]
+        : "";
+  // Translate known Computer Use errors without inferring a successful retry.
+  if (tool.server === "cua_repl") {
+    if (reason?.startsWith("Invalid app:")) return "未找到应用";
+    if (reason?.includes("noWindowsAvailable")) return "未找到可操作窗口";
+  }
+  return reason ? `执行失败：${reason}` : "执行失败（未记录原因）";
+}
 export function projectActivity(
   activity: ExecutionActivity,
 ): ExecutionProjection {
@@ -181,6 +212,13 @@ export function projectActivity(
       const complete = ["completed", "complete", "success"].includes(status);
       const failed = ["failed", "cancelled", "error"].includes(status);
       const input = record(tool.rawInput);
+      const args = tool.arguments ?? input.arguments;
+      const outputValue =
+        tool.aggregatedOutput ?? tool.output ?? tool.rawOutput ?? tool.result;
+      const output = toolOutputText(outputValue);
+      const failureLabel = failed ? toolFailureLabel(tool, output) : null;
+      const error = record(tool.error ?? record(tool.rawOutput).error).message;
+      const actionTitle = record(args).title;
       const labels: Record<string, string> = {
         commandExecution: "终端",
         mcpToolCall: "调用工具",
@@ -200,7 +238,11 @@ export function projectActivity(
         chip:
           tool.command || input.command
             ? commandPreview(tool.command ?? input.command)
-            : commandText([tool.server, tool.tool].filter(Boolean).join("."))
+            : commandText(
+                typeof actionTitle === "string" && actionTitle.trim()
+                  ? actionTitle
+                  : [tool.server, tool.tool].filter(Boolean).join("."),
+              )
                 .replace(/\s+/g, " ")
                 .slice(0, 160),
         mono: false,
@@ -212,7 +254,9 @@ export function projectActivity(
               ? "running"
               : "unconfirmed",
         statusLabel: failed
-          ? "未完成"
+          ? status === "cancelled"
+            ? "已取消"
+            : failureLabel!
           : complete
             ? "已完成"
             : activity.state === "running"
@@ -220,32 +264,41 @@ export function projectActivity(
               : "结果未记录",
         detail: (
           <>
+            {failed && (
+              <p className="text-destructive whitespace-pre-wrap">
+                {status === "cancelled" ? "工具调用已取消" : failureLabel}
+                {typeof error === "string" ? `\n${error}` : ""}
+              </p>
+            )}
+            {args !== undefined && (
+              <div>
+                <p className="mb-1">
+                  {[tool.server, tool.tool].filter(Boolean).join(".")} · 参数
+                </p>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono">
+                  {typeof args === "string"
+                    ? args
+                    : JSON.stringify(args, null, 2)}
+                </pre>
+              </div>
+            )}
             {(tool.command || input.command) && (
               <pre className="whitespace-pre-wrap break-all font-mono">
                 {commandText(tool.command ?? input.command)}
               </pre>
             )}
-            {(tool.aggregatedOutput || tool.output || tool.rawOutput) && (
-              <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-all font-mono">
-                {typeof (
-                  tool.aggregatedOutput ??
-                  tool.output ??
-                  tool.rawOutput
-                ) === "string"
-                  ? String(
-                      tool.aggregatedOutput ?? tool.output ?? tool.rawOutput,
-                    )
-                  : JSON.stringify(
-                      tool.aggregatedOutput ?? tool.output ?? tool.rawOutput,
-                      null,
-                      2,
-                    )}
-              </pre>
+            {outputValue !== undefined && outputValue !== null && (
+              <div>
+                <p className="mb-1">返回内容</p>
+                <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words font-mono">
+                  {output || JSON.stringify(outputValue, null, 2)}
+                </pre>
+              </div>
             )}
             <details>
               <summary className="cursor-pointer">原始工具记录</summary>
               <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap break-all">
-                {JSON.stringify(tool, null, 2).slice(0, 16000)}
+                {JSON.stringify(tool, null, 2)}
               </pre>
             </details>
           </>

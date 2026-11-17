@@ -2,7 +2,8 @@
 
 import Link from "@/lib/navigation";
 import { useRouter } from "@/lib/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useBlocker } from "react-router-dom";
 import { Save, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import type { Role } from "@hutian-world/contracts";
@@ -52,7 +53,7 @@ export function MemberForm({
     instructions: role?.instructions ?? "",
   });
   const [draft, setDraft] = useState(saved);
-  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const navigationAllowed = useRef(false);
   const [navigating, setNavigating] = useState(false);
   const [state, submit, pending] = useActionState(
     async (previous: ActionState, data: FormData) => {
@@ -70,6 +71,7 @@ export function MemberForm({
         } else if (result.id) {
           toast.success("Agent 已创建", { description: next.name });
           setNavigating(true);
+          navigationAllowed.current = true;
           router.replace(
             memberHref(`/members/${result.id}`, query, {
               view: "settings",
@@ -87,6 +89,13 @@ export function MemberForm({
     draft.description !== saved.description ||
     draft.instructions !== saved.instructions;
   const locked = pending || navigating;
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      !navigationAllowed.current &&
+      (dirty || locked) &&
+      currentLocation.pathname + currentLocation.search !==
+        nextLocation.pathname + nextLocation.search,
+  );
 
   useEffect(() => {
     if (!dirty && !locked) return;
@@ -95,44 +104,9 @@ export function MemberForm({
       event.preventDefault();
       event.returnValue = "";
     }
-    function confirmNavigation(event: MouseEvent) {
-      if (
-        event.defaultPrevented ||
-        event.button !== 0 ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        event.altKey
-      )
-        return;
-      const link =
-        event.target instanceof Element
-          ? event.target.closest("a[href]")
-          : null;
-      if (
-        !(link instanceof HTMLAnchorElement) ||
-        link.target === "_blank" ||
-        link.download
-      )
-        return;
-      const destination = new URL(link.href);
-      if (
-        destination.origin !== window.location.origin ||
-        destination.href === window.location.href
-      )
-        return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (!locked)
-        setPendingHref(
-          `${destination.pathname}${destination.search}${destination.hash}`,
-        );
-    }
     window.addEventListener("beforeunload", preventUnload);
-    document.addEventListener("click", confirmNavigation, true);
     return () => {
       window.removeEventListener("beforeunload", preventUnload);
-      document.removeEventListener("click", confirmNavigation, true);
     };
   }, [dirty, locked]);
 
@@ -242,9 +216,9 @@ export function MemberForm({
         </form>
       </section>
       <AlertDialog
-        open={pendingHref !== null}
+        open={blocker.state === "blocked"}
         onOpenChange={(open) => {
-          if (!open) setPendingHref(null);
+          if (!open && blocker.state === "blocked") blocker.reset();
         }}
       >
         <AlertDialogContent>
@@ -255,10 +229,12 @@ export function MemberForm({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>继续编辑</AlertDialogCancel>
+            <AlertDialogCancel disabled={locked}>继续编辑</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => {
-                if (pendingHref) router.push(pendingHref);
+              disabled={locked}
+              onClick={(event) => {
+                event.preventDefault();
+                if (blocker.state === "blocked") blocker.proceed();
               }}
             >
               放弃修改并离开

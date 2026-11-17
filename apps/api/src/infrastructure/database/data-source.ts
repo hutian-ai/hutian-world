@@ -1,3 +1,5 @@
+import { RuntimeDeviceSettingSchema } from "../../modules/runtime-devices/entities/runtime-device-setting.schema.js";
+import { RuntimeDeviceSettings1794888000000 } from "./migrations/runtime-device-settings.js";
 import "reflect-metadata";
 import { ScheduleInbox1794840000000 } from "./migrations/schedule-inbox.js";
 import { DataSource } from "typeorm";
@@ -55,8 +57,10 @@ export function dataSource(url: string) {
       ExecutionPreferences1794772000000,
       ScheduledPermissionWait1794820000000,
       ScheduleInbox1794840000000,
+      RuntimeDeviceSettings1794888000000,
     ],
     entities: [
+      RuntimeDeviceSettingSchema,
       AppUserSchema,
       WorkspaceSchema,
       WorkspaceMemberSchema,

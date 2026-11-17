@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link, { useRouter } from "@/lib/navigation";
-import { ArrowLeft, ChevronDown, Plus, Save, X } from "lucide-react";
+import { ChevronDown, Plus, Save, X } from "lucide-react";
+import { PageNavigation } from "./page-navigation";
+import { useBlocker } from "react-router-dom";
 import { toast } from "sonner";
 import {
   scheduleInput,
@@ -63,12 +65,14 @@ export function ScheduleEditor({
   initialDate,
   initialRoleId,
   returnTo,
+  cancelTo,
   roles,
 }: ScheduleEditorChoices & {
   initial: ScheduledTask | null;
   initialDate?: string;
   initialRoleId?: string;
   returnTo: string;
+  cancelTo?: string;
 }) {
   const router = useRouter();
   const [task, setTask] = useState<ScheduleInput>(() => {
@@ -112,11 +116,18 @@ export function ScheduleEditor({
     starts: string[];
     error: string;
   } | null>(null);
-  const [leave, setLeave] = useState<string | null>(null),
-    [advanced, setAdvanced] = useState(false);
+  const [advanced, setAdvanced] = useState(false);
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      JSON.stringify(task) !== original.current &&
+      currentLocation.pathname + currentLocation.search !==
+        nextLocation.pathname + nextLocation.search,
+  );
   const lock = useRef(false),
     dirty = JSON.stringify(task) !== original.current;
-  const back = initial ? scheduleHref(initial.id, returnTo) : returnTo;
+  const back = initial
+    ? scheduleHref(initial.id, returnTo)
+    : (cancelTo ?? returnTo);
   const patch = (value: Partial<ScheduleInput>) =>
     setTask((current) => ({ ...current, ...value }));
   const rulePatch = (value: Partial<ScheduleRule>) =>
@@ -163,32 +174,9 @@ export function ScheduleEditor({
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
     };
-    const navigate = (event: MouseEvent) => {
-      const link =
-        event.target instanceof Element
-          ? event.target.closest<HTMLAnchorElement>("a[href]")
-          : null;
-      if (
-        !link ||
-        link.target === "_blank" ||
-        event.metaKey ||
-        event.ctrlKey ||
-        event.shiftKey ||
-        link.download ||
-        event.defaultPrevented
-      )
-        return;
-      const url = new URL(link.href, window.location.href);
-      if (url.origin !== location.origin || url.href === location.href) return;
-      event.preventDefault();
-      event.stopPropagation();
-      if (!lock.current) setLeave(url.pathname + url.search + url.hash);
-    };
     window.addEventListener("beforeunload", warn);
-    document.addEventListener("click", navigate, true);
     return () => {
       window.removeEventListener("beforeunload", warn);
-      document.removeEventListener("click", navigate, true);
     };
   }, [dirty]);
   async function save() {
@@ -244,30 +232,31 @@ export function ScheduleEditor({
   }
   return (
     <div className="space-y-6">
+      <PageNavigation
+        items={[
+          { label: "定时任务", href: returnTo },
+          ...(initial
+            ? [
+                {
+                  label: initial.title,
+                  href: scheduleHref(initial.id, returnTo),
+                },
+                { label: "编辑" },
+              ]
+            : [{ label: "新建定时任务" }]),
+        ]}
+      />
       <header className="sticky top-14 z-20 flex flex-wrap items-center justify-between gap-4 border-b bg-background py-4">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            disabled={busy}
-            aria-label={initial ? "返回任务详情" : "返回定时任务"}
-            onClick={() => (dirty ? setLeave(back) : router.push(back))}
-          >
-            <ArrowLeft />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold">
-              {initial ? "编辑定时任务" : "新建定时任务"}
-            </h1>
-          </div>
-        </div>
+        <h1 className="text-2xl font-semibold">
+          {initial ? "编辑定时任务" : "新建定时任务"}
+        </h1>
         <div className="flex gap-2">
           <Button
             variant="outline"
             disabled={busy}
-            onClick={() => (dirty ? setLeave(back) : router.push(back))}
+            onClick={() => router.push(back)}
           >
-            取消
+            {cancelTo && !initial ? "取消并返回成员" : "取消"}
           </Button>
           <Button type="submit" form="schedule-form" disabled={busy}>
             <Save />
@@ -698,9 +687,9 @@ export function ScheduleEditor({
         </aside>
       </form>
       <AlertDialog
-        open={Boolean(leave)}
+        open={blocker.state === "blocked"}
         onOpenChange={(open) => {
-          if (!open) setLeave(null);
+          if (!open && blocker.state === "blocked") blocker.reset();
         }}
       >
         <AlertDialogContent>
@@ -711,12 +700,13 @@ export function ScheduleEditor({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>继续编辑</AlertDialogCancel>
+            <AlertDialogCancel disabled={busy}>继续编辑</AlertDialogCancel>
             <AlertDialogAction
               variant="destructive"
-              onClick={() => {
-                original.current = JSON.stringify(task);
-                router.push(leave!);
+              disabled={busy}
+              onClick={(event) => {
+                event.preventDefault();
+                if (blocker.state === "blocked") blocker.proceed();
               }}
             >
               放弃修改

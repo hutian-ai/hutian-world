@@ -19,6 +19,7 @@ import {
   memoryCapabilities,
   memoryOperation,
   readMemory,
+  readKnowledge,
   remember,
   saveKnowledge,
   searchKnowledge,
@@ -224,8 +225,15 @@ export function contextDefinitions(grant: Grant) {
     ...(grant.useKnowledge
       ? [
           definition(
+            "list_knowledge",
+            "List the latest authorized knowledge document versions by optional title substring. Use this to locate exact maintained records before reading them; search snippets and old version IDs are not authoritative current records. Returns metadata only, never another scope's documents.",
+            { title: { ...text, maxLength: 200 } },
+            [],
+            true,
+          ),
+          definition(
             "read_knowledge",
-            "Read an authorized knowledge document. Scope must come from search_context.",
+            "Read an authorized knowledge document original. Copy scope and current version ID from list_knowledge or search_context. Historical version IDs read historical content.",
             {
               id: text,
               scope: { type: "string", enum: ["role", "conversation"] },
@@ -409,12 +417,26 @@ export async function callContextTool(token: string, raw: unknown) {
         },
         scope,
       );
-    } else if (call.name === "read_knowledge") {
-      const doc = (await listKnowledge(locate(), true)).find(
-        (d) => d.id === args.id,
+    } else if (call.name === "list_knowledge") {
+      const title = z.string().trim().max(200).optional().parse(args.title);
+      content = await Promise.all(
+        scopes.map(async (scope) => ({
+          scope: scope.kind,
+          documents: (await listKnowledge(scope))
+            .filter((doc) => !title || doc.title.includes(title))
+            .map(({ id, title, version, status, createdAt, previousId }) => ({
+              id,
+              title,
+              version,
+              status,
+              createdAt,
+              previousId,
+              url: scopeUrl("knowledge", scope, id),
+            })),
+        })),
       );
-      if (!doc) throw new Error("资料不存在或不在当前授权范围。");
-      content = doc;
+    } else if (call.name === "read_knowledge") {
+      content = await readKnowledge(z.uuid().parse(args.id), locate());
     } else if (
       call.name === "save_knowledge" ||
       call.name === "update_knowledge"

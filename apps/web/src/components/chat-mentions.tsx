@@ -1,11 +1,16 @@
 "use client";
-import { unstable_useMentionAdapter } from "@assistant-ui/react";
+import { unstable_useMentionAdapter, useAuiState } from "@assistant-ui/react";
 import type { DirectiveChipProps } from "@assistant-ui/react-lexical";
 import { AtSign } from "lucide-react";
 import { ComposerTriggerPopover } from "@hutian-ai/design/assistant-ui/elements/composer-trigger-popover.aui";
+import { ChatMention } from "@hutian-ai/design/chat/mention";
+import { MarkdownText } from "@hutian-ai/design/assistant-ui/markdown-text";
+import { useMemo, type ComponentProps } from "react";
 import {
   memberMentionFormatter,
   memberMentionMatcher,
+  messageMentionPlugin,
+  type MessageMention,
 } from "@/lib/conversation-mentions";
 
 export function ChatMentionTrigger({
@@ -43,14 +48,44 @@ export function ChatMentionTrigger({
 }
 export function ChatMentionChip({ directiveId, label }: DirectiveChipProps) {
   return (
-    <span
-      data-slot="composer-mention-chip"
-      data-member-id={directiveId}
-      className="aui-directive-chip mx-0.5 inline-flex items-baseline gap-0.5 rounded border border-primary/20 bg-primary/10 px-1 text-sm text-foreground"
-      aria-label={`请 ${label} 处理`}
-    >
-      <span className="text-primary">@</span>
-      {label}
-    </span>
+    <ChatMention
+      id={directiveId}
+      label={label}
+      ariaLabel={`请 ${label} 处理`}
+    />
+  );
+}
+
+const mentionComponents: NonNullable<
+  ComponentProps<typeof MarkdownText>["components"]
+> = {
+  span: (input) => {
+    const {
+      children,
+      className,
+      "data-member-id": id,
+      "data-member-label": label,
+    } = input as typeof input & {
+      "data-member-id"?: string;
+      "data-member-label"?: string;
+    };
+    return typeof id === "string" && typeof label === "string" ? (
+      <ChatMention id={id} label={label} />
+    ) : (
+      <span className={className}>{children}</span>
+    );
+  },
+};
+
+export function ChatMessageText() {
+  const mentions = useAuiState(
+    (s) => s.message.metadata.custom.mentions as MessageMention[] | undefined,
+  );
+  const plugins = useMemo(
+    () => [messageMentionPlugin(mentions ?? [])],
+    [mentions],
+  );
+  return (
+    <MarkdownText components={mentionComponents} remarkPlugins={plugins} />
   );
 }

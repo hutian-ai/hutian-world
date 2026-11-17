@@ -1,3 +1,4 @@
+import { RuntimeDevicesModule } from "../runtime-devices/runtime-devices.module.js";
 import { Module } from "@nestjs/common";
 import { AccessModule } from "../access/access.module.js";
 import { WorkspaceModule } from "../workspace/workspace.module.js";
@@ -10,6 +11,7 @@ import { WorkbenchController } from "./workbench.controller.js";
 import { WorkbenchTransportController } from "./transport.controller.js";
 @Module({
   imports: [
+    RuntimeDevicesModule,
     AccessModule,
     WorkspaceModule,
     RolesModule,

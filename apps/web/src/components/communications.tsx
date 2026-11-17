@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { Switch } from "@hutian-ai/design/ui/switch";
 import { MemberExecutionSettings } from "./member-execution-settings";
-import { ChatMentionTrigger, ChatMentionChip } from "./chat-mentions";
+import { ChatMentionTrigger, ChatMentionChip, ChatMessageText } from "./chat-mentions";
 import {
   memberMentionFormatter,
   composerMessage,
@@ -675,7 +675,7 @@ function UserMessage() {
   return (
     <ChatMessageRoot role="user">
       <UserMessageBubble>
-        <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
+        <MessagePrimitive.Parts components={{ Text: ChatMessageText }} />
       </UserMessageBubble>
       {attachments?.map((file) => (
         <a
@@ -1045,8 +1045,7 @@ export function Communications({
   const [historyCursor, setHistoryCursor] = useState(
     initial?.nextCursor ?? null,
   );
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const threadContainer = useRef<HTMLDivElement>(null);
+  const [historyError, setHistoryError] = useState("");
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [connectionError, setConnectionError] = useState("");
@@ -1260,6 +1259,9 @@ export function Communications({
                 requestEventId: job?.eventId,
                 agentId: job?.agentId,
                 dispatchPending: sending,
+                mentions: state.agents
+                  .filter((agent) => m.mentionedUserIds.includes(agent.userId))
+                  .map((agent) => ({ id: agent.id, name: agent.name })),
                 ...(m.sender === "human"
                   ? {
                       retryTargets: state.agents
@@ -1446,6 +1448,29 @@ export function Communications({
   );
   const runtime: AssistantRuntime = useExternalStoreRuntime<ThreadMessageLike>({
     messages,
+    hasEarlier: Boolean(historyCursor),
+    onLoadEarlier: async () => {
+      if (!selectedId || !historyCursor) return;
+      const roomId = selectedId;
+      setHistoryError("");
+      try {
+        const response = await fetch(
+          `/api/chat-history?${new URLSearchParams({ room: roomId, cursor: historyCursor })}`,
+        );
+        if (!response.ok) throw new Error();
+        const page = (await response.json()) as Conversation;
+        if (currentRoom.current !== roomId) return;
+        setState((previous) =>
+          previous ? mergeConversation(page, previous) : page,
+        );
+        setHistoryCursor(
+          page.nextCursor === historyCursor ? null : page.nextCursor,
+        );
+      } catch {
+        if (currentRoom.current === roomId)
+          setHistoryError("较早消息暂不可读取。");
+      }
+    },
     convertMessage: (message) => message,
     isRunning: false,
     isDisabled: !state || !preferencesLoaded,
@@ -1924,56 +1949,9 @@ export function Communications({
                     <RefreshCw className="size-4" />
                   </Button>
                 </header>
-                <div ref={threadContainer} className="min-h-0 flex-1">
+                <div className="min-h-0 flex-1">
                   <Thread
-                    beforeMessages={
-                      historyCursor && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={loadingHistory}
-                          className="self-center text-xs text-muted-foreground"
-                          onClick={async () => {
-                            const viewport =
-                              threadContainer.current?.querySelector(
-                                '[data-slot="aui_thread-viewport"]',
-                              );
-                            const height = viewport?.scrollHeight ?? 0;
-                            const top = viewport?.scrollTop ?? 0;
-                            setLoadingHistory(true);
-                            try {
-                              const response = await fetch(
-                                `/api/chat-history?${new URLSearchParams({ room: selectedId!, cursor: historyCursor })}`,
-                              );
-                              if (!response.ok) throw new Error();
-                              const page =
-                                (await response.json()) as Conversation;
-                              setState((previous) =>
-                                mergeConversation(page, previous!),
-                              );
-                              setHistoryCursor(
-                                page.nextCursor === historyCursor
-                                  ? null
-                                  : page.nextCursor,
-                              );
-                              requestAnimationFrame(() =>
-                                requestAnimationFrame(() => {
-                                  if (viewport)
-                                    viewport.scrollTop =
-                                      top + viewport.scrollHeight - height;
-                                }),
-                              );
-                            } catch {
-                              setError("较早历史暂不可读取，请稍后重试。");
-                            } finally {
-                              setLoadingHistory(false);
-                            }
-                          }}
-                        >
-                          {loadingHistory ? "正在读取" : "加载更早消息"}
-                        </Button>
-                      )
-                    }
+                    historyError={historyError}
                     components={{ AssistantMessage, UserMessage }}
                     autoFocus={false}
                     composer={{

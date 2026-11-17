@@ -13,14 +13,7 @@ import {
   AlertTitle,
 } from "@hutian-ai/design/ui/alert";
 import { Badge } from "@hutian-ai/design/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@hutian-ai/design/ui/breadcrumb";
+import { PageNavigation } from "@/components/page-navigation";
 import { Button } from "@hutian-ai/design/ui/button";
 import {
   Collapsible,
@@ -63,32 +56,14 @@ export default async function RuntimeDetailsPage({
         : result.message;
   return (
     <>
+      <PageNavigation
+        items={[
+          { label: "运行环境", href: "/runtimes" },
+          { label: host, href: deviceHref },
+          { label: title },
+        ]}
+      />
       <ObjectHeader
-        path={
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href="/runtimes" prefetch={false}>
-                    运行环境
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem className="min-w-0">
-                <BreadcrumbLink className="truncate" asChild>
-                  <Link href={deviceHref} prefetch={false}>
-                    {host}
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{title}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        }
         eyebrow="Runtime"
         title={title}
         description={

@@ -62,6 +62,7 @@ export const commands = {
   "direct-chat.getDirectChat": m11.getDirectChat,
   "communications.readDirectory": m12.readDirectory,
   "communications.readConversation": m12.readConversation,
+  "dock.saveRuntimeDeviceName": m13.saveRuntimeDeviceName,
   "dock.getDockConnection": m13.getDockConnection,
   "dock.getDockDevice": m13.getDockDevice,
   "resource-scopes.resolveResourceScope": m14.resolveResourceScope,

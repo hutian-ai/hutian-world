@@ -1,12 +1,13 @@
 import Link from "@/lib/navigation";
 import { notFound } from "@/lib/navigation";
-import { ArrowLeft, FolderKanban, UserPlus, UsersRound } from "lucide-react";
+import { FolderKanban, UserPlus, UsersRound } from "lucide-react";
 import {
   AddRoleDialog,
   ProjectEditorDialog,
   RemoveRoleButton,
 } from "@/components/editors";
 import { EmptyState } from "@/components/empty-state";
+import { PageNavigation } from "@/components/page-navigation";
 import { ObjectHeader } from "@/components/object-header";
 import { Avatar, AvatarFallback } from "@hutian-ai/design/ui/avatar";
 import { Button } from "@hutian-ai/design/ui/button";
@@ -35,15 +36,10 @@ export default async function ProjectPage({
   );
   return (
     <>
+      <PageNavigation
+        items={[{ label: "项目", href: "/projects" }, { label: project.name }]}
+      />
       <ObjectHeader
-        path={
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/projects">
-              <ArrowLeft />
-              所有项目
-            </Link>
-          </Button>
-        }
         media={<FolderKanban className="size-5" />}
         title={project.name}
         description="项目概况"

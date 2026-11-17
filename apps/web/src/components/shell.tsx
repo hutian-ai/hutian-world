@@ -8,7 +8,6 @@ import {
   Brain,
   CalendarClock,
   Inbox,
-  ChevronRight,
   MessageCircle,
   ServerCog,
   UsersRound,
@@ -33,17 +32,23 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@hutian-ai/design/ui/sidebar";
+import { WorkspaceBreadcrumb } from "./page-navigation";
+import { workspaceSections } from "@/lib/workspace-navigation";
 import { Avatar, AvatarFallback } from "@hutian-ai/design/ui/avatar";
 
-const navigation = [
-  { href: "/inbox", label: "收件箱", icon: Inbox },
-  { href: "/chat", label: "沟通", icon: MessageCircle },
-  { href: "/members", label: "组织", icon: UsersRound },
-  { href: "/knowledge", label: "知识库", icon: BookOpen },
-  { href: "/memory", label: "记忆", icon: Brain },
-  { href: "/schedules", label: "定时任务", icon: CalendarClock },
-  { href: "/runtimes", label: "运行环境", icon: ServerCog },
+const sectionIcons = [
+  Inbox,
+  MessageCircle,
+  UsersRound,
+  BookOpen,
+  Brain,
+  CalendarClock,
+  ServerCog,
 ];
+const navigation = workspaceSections.map((section, index) => ({
+  ...section,
+  icon: sectionIcons[index]!,
+}));
 
 function WorkspaceNavigation() {
   const pathname = usePathname();
@@ -146,10 +151,6 @@ export function WorkspaceShell({
   defaultSidebarOpen: boolean;
   children: ReactNode;
 }) {
-  const pathname = usePathname();
-  const section = navigation.find(
-    ({ href }) => pathname === href || pathname.startsWith(`${href}/`),
-  );
   return (
     <SidebarProvider
       defaultOpen={defaultSidebarOpen}
@@ -203,18 +204,7 @@ export function WorkspaceShell({
       <SidebarInset className="min-w-0">
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
           <SidebarTrigger />
-          <nav
-            aria-label="当前位置"
-            className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground"
-          >
-            <span className="truncate">{owner}</span>
-            {section && (
-              <>
-                <ChevronRight className="size-3 shrink-0" aria-hidden="true" />
-                <Link href={section.href}>{section.label}</Link>
-              </>
-            )}
-          </nav>
+          <WorkspaceBreadcrumb owner={owner} />
         </header>
         <div id="main-content" className="world-content" tabIndex={-1}>
           {children}

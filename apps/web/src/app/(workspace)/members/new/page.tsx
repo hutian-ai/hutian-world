@@ -1,5 +1,5 @@
 import { notFound } from "@/lib/navigation";
-import { MemberBreadcrumb } from "@/components/member-breadcrumb";
+import { PageNavigation } from "@/components/page-navigation";
 import { MemberForm } from "@/components/member-form";
 import { ObjectHeader } from "@/components/object-header";
 import { getWorkspace } from "@/lib/api";
@@ -28,14 +28,13 @@ export default async function NewMemberPage({
 
   return (
     <>
+      <PageNavigation
+        items={[
+          { label: "组织", href: memberHref("/members", query) },
+          { label: "新增成员" },
+        ]}
+      />
       <ObjectHeader
-        path={
-          <MemberBreadcrumb
-            href={cancelHref}
-            parent={project?.name}
-            title="新增成员"
-          />
-        }
         title="新增成员"
         description={
           project

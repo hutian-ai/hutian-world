@@ -208,6 +208,8 @@ export type KnowledgeDocument = {
   version?: number;
 };
 export type DockDevice = {
+  customName: string | null;
+  nameSettings?: { connectionId: string; sourceKey: string; version: number };
   nodeId: string;
   label?: string | undefined;
   connected: boolean;
@@ -787,6 +789,12 @@ export interface WorkbenchCommands {
     active: { agentId: string; roomId: string; eventId: string } | null;
     nextCursor: string | null;
   }>;
+  "dock.saveRuntimeDeviceName": (
+    input: Contracts.RuntimeDeviceNameInput,
+  ) => Promise<
+    | { ok: true; customName: string | null; version: number }
+    | { ok: false; error: string }
+  >;
   "dock.getDockConnection": () => Promise<DockConnection>;
   "dock.getDockDevice": (nodeId: string) => Promise<
     | {

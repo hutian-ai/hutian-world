@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import type { Project } from "@hutian-world/contracts";
 import { EmptyState } from "@/components/empty-state";
-import { MemberBreadcrumb } from "@/components/member-breadcrumb";
+import { PageNavigation } from "@/components/page-navigation";
 import { MemberForm } from "@/components/member-form";
 import { ObjectHeader } from "@/components/object-header";
 import { OrganizationMarkdown } from "@/components/organization-markdown";
@@ -139,8 +139,10 @@ export default async function MemberPage({
 
   return (
     <>
+      <PageNavigation
+        items={[{ label: "组织", href: directoryHref }, { label: name }]}
+      />
       <ObjectHeader
-        path={<MemberBreadcrumb href={directoryHref} title={name} />}
         media={
           <Avatar className="size-full rounded-lg border-0">
             <AvatarFallback className="rounded-lg bg-primary/10 text-xl text-primary">
@@ -162,7 +164,9 @@ export default async function MemberPage({
                 <Link href={`/schedules?role=${role.id}`}>定时任务</Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href={`/schedules/new?role=${role.id}`}>
+                <Link
+                  href={`/schedules/new?${new URLSearchParams({ role: role.id, from: memberHref(`/members/${id}`, query, view === "overview" ? {} : { view, ...(view === "settings" ? { section: settingsSection } : {}) }) })}`}
+                >
                   新建定时任务
                 </Link>
               </Button>

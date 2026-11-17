@@ -23,10 +23,10 @@ import { readConversation, type Conversation } from "@/lib/communications";
 import {
   scheduleAt,
   scheduleStateLabels,
-  scheduleHref,
   scheduledWorkHref,
   scheduledWorkReturnTo,
-  scheduleReturnTo,
+  scheduleFromWorkHref,
+  scheduledWorkReturnLabel,
 } from "@/lib/schedule-display";
 import { ScheduleRunStatus, scheduleRunTone } from "./schedule-run-status";
 import { Communications } from "./communications";
@@ -717,9 +717,9 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
                           )}
                           <DropdownMenuItem asChild>
                             <Link
-                              href={scheduleHref(
+                              href={scheduleFromWorkHref(
                                 item.run.scheduleId,
-                                scheduleReturnTo(returnTo),
+                                returnTo,
                               )}
                             >
                               任务与历史
@@ -768,19 +768,27 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
           ) : (
             <>
               <header className="shrink-0 space-y-3 border-b p-4">
+                <div className={returnTo ? undefined : "min-[821px]:hidden"}>
+                  {returnTo ? (
+                    <Button asChild variant="ghost" size="sm" className="-ml-2">
+                      <Link href={returnTo}>
+                        <ArrowLeft />
+                        {scheduledWorkReturnLabel(returnTo)}
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="-ml-2"
+                      onClick={() => updateSelection(null)}
+                    >
+                      <ArrowLeft />
+                      返回通知列表
+                    </Button>
+                  )}
+                </div>
                 <div className="flex items-start gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className={returnTo ? undefined : "min-[821px]:hidden"}
-                    aria-label={returnTo ? "返回任务来源" : "返回通知列表"}
-                    title={returnTo ? "返回任务来源" : "返回通知列表"}
-                    onClick={() =>
-                      returnTo ? navigate(returnTo) : updateSelection(null)
-                    }
-                  >
-                    <ArrowLeft />
-                  </Button>
                   <div className="min-w-0 flex-1">
                     <h2 className="break-words text-sm font-medium">
                       {run.snapshot.title}
@@ -805,12 +813,7 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button asChild size="sm" variant="ghost">
-                    <Link
-                      href={scheduleHref(
-                        run.scheduleId,
-                        scheduleReturnTo(returnTo),
-                      )}
-                    >
+                    <Link href={scheduleFromWorkHref(run.scheduleId, returnTo)}>
                       任务与历史
                     </Link>
                   </Button>

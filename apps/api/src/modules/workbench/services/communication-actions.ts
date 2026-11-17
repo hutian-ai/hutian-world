@@ -262,7 +262,7 @@ export async function askConversation(
           provider?.message ?? "所选 Harness 当前未就绪，消息已保留。",
         );
       runtimeLabel =
-        `${value.runtimeMode === "member" ? "成员默认 · " : ""}${device.device.label || device.device.nodeId} · ${device.runtimes.find((r) => r.key === selectedRuntime.provider)!.displayName}`.slice(
+        `${value.runtimeMode === "member" ? "成员默认 · " : ""}${device.device.customName || device.device.nodeId} · ${device.runtimes.find((r) => r.key === selectedRuntime.provider)!.displayName}`.slice(
           0,
           200,
         );
@@ -380,14 +380,14 @@ export async function discoverChatRuntimes() {
       ok: true as const,
       pendingDevices: connection.devices
         .filter((d) => d.connected && d.inventoryState === "unknown")
-        .map((d) => ({ nodeId: d.nodeId, label: d.label ?? "电脑" })),
+        .map((d) => ({ nodeId: d.nodeId, label: d.customName || d.nodeId })),
       runtimes: connection.devices.flatMap((d) =>
         d.runtimes
           .filter((r) => r.status === "ready")
           .map((r) => ({
             nodeId: d.nodeId,
             provider: r.key,
-            label: `${d.label ?? "电脑"} · ${r.displayName}`,
+            label: `${d.customName || d.nodeId} · ${r.displayName}`,
           })),
       ),
     };

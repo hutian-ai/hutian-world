@@ -71,6 +71,24 @@ export function scheduledWorkReturnTo(value?: string | null) {
     ? value
     : null;
 }
+/** Preserve the original list/calendar context when returning through a run. */
+export function scheduleFromWorkHref(id: string, source?: string | null) {
+  const back = scheduledWorkReturnTo(source);
+  if (!back) return scheduleHref(id, "/schedules");
+  const url = new URL(back, "http://hutian.local");
+  if (url.pathname === `/schedules/${id}`) return back;
+  const list =
+    url.pathname === "/schedules"
+      ? back
+      : scheduleReturnTo(url.searchParams.get("returnTo"));
+  return scheduleHref(id, list);
+}
+
+export function scheduledWorkReturnLabel(source: string) {
+  return source.split("?")[0] === "/schedules"
+    ? "返回定时任务"
+    : "返回任务详情";
+}
 export function scheduledWorkHref(id: string, returnTo?: string) {
   const params = new URLSearchParams({ run: id });
   const back = scheduledWorkReturnTo(returnTo);

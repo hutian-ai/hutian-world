@@ -18,6 +18,7 @@ src/
     access/                    本机身份、访问范围、鉴权与请求上下文
     workspace/                 总览聚合、旧会话覆盖兼容入口
     roles/                     角色资料、通信身份、成员 Runtime 绑定
+    runtime-devices/           当前空间与 Dock 接入来源下的手动设备名称
     projects/                  项目与项目成员关系
     chat-requests/             聊天请求协调与聊天工作流
     schedules/                 安排管理、运行扫描、映射与定时工作流

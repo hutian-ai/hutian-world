@@ -1,19 +1,19 @@
 "use client";
-import Link from "@/lib/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "@/lib/navigation";
-import { ArrowLeft } from "lucide-react";
 import type { ScheduledRun, ScheduledTask } from "@hutian-world/contracts";
 import { loadSchedule, previewScheduleRule } from "@/lib/schedule-actions";
 import {
   scheduleAt,
   scheduleHref,
   scheduledWorkHref,
+  scheduleStatusLabels,
 } from "@/lib/schedule-display";
 import { ScheduleActions } from "./schedule-actions";
 import { ScheduleSummary } from "./schedule-summary";
 import { ScheduleRuns } from "./schedule-runs";
-import { Button } from "@hutian-ai/design/ui/button";
+import { Badge } from "@hutian-ai/design/ui/badge";
+import { PageNavigation } from "./page-navigation";
 import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
 
 export function ScheduleDetail({
@@ -63,16 +63,15 @@ export function ScheduleDetail({
   const { task, runs } = data;
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-5">
-        <div className="flex min-w-0 items-start gap-3">
-          <Button asChild variant="ghost" size="icon-sm">
-            <Link href={returnTo} aria-label="返回定时任务">
-              <ArrowLeft />
-            </Link>
-          </Button>
-          <div>
-            <h1 className="text-2xl font-semibold">{task.title}</h1>
-          </div>
+      <PageNavigation
+        items={[{ label: "定时任务", href: returnTo }, { label: task.title }]}
+      />
+      <header className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-3 sm:flex-1">
+          <h1 className="min-w-0 break-words text-2xl font-semibold">
+            {task.title}
+          </h1>
+          <Badge variant="outline">{scheduleStatusLabels[task.status]}</Badge>
         </div>
         <ScheduleActions
           task={task}
@@ -96,7 +95,7 @@ export function ScheduleDetail({
       )}
       <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_19rem]">
         <div className="min-w-0 space-y-8">
-          <ScheduleSummary task={task} roleName={roleName} />
+          <ScheduleSummary task={task} roleName={roleName} showStatus={false} />
           <section className="space-y-3 border-t pt-6">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold">运行记录</h2>

@@ -13,6 +13,11 @@ import {
 } from "@harness-dock/client";
 import { z } from "zod";
 import {
+  runtimeDeviceNameInput,
+  type RuntimeDeviceNames,
+} from "@hutian-world/contracts";
+import { api } from "./api.js";
+import {
   runtimeModels,
   runtimeDefaults,
   runtimePermissions,
@@ -31,7 +36,10 @@ const clientCredential = z.strictObject({
 export type DockDevice = Pick<
   DeviceNodeSummary,
   "nodeId" | "label" | "connected"
->;
+> & {
+  customName: string | null;
+  nameSettings?: { connectionId: string; sourceKey: string; version: number };
+};
 export type DockDirectoryDevice = DockDevice & {
   hostname?: string;
   platform?: string;
@@ -129,8 +137,9 @@ export function getDockConnection(): Promise<DockConnection> {
       const options = await savedOptions();
       if (!options) return { state: "missing" };
       const snapshot = await hostInventory(options);
+      const names = await api<RuntimeDeviceNames>("/v1/runtime-devices");
       const devices = snapshot.nodes.map((node) => {
-        const result = inventoryDevice(node);
+        const result = inventoryDevice(node, names);
         if (result.state === "online")
           return {
             ...result.device,
@@ -188,10 +197,21 @@ async function hostInventory(options: ServerClientOptions, nodeId?: string) {
     throw new ConnectionInputError("执行入口返回的连接身份不一致。");
   return raw;
 }
-function inventoryDevice(node: InventoryNode) {
+function inventoryDevice(node: InventoryNode, names: RuntimeDeviceNames) {
+  const setting = names.settings.find((s) => s.nodeId === node.nodeId);
   const device: DockDevice = {
     nodeId: node.nodeId,
-    label: node.label ?? "",
+    label: setting?.customName ?? "",
+    customName: setting?.customName ?? null,
+    ...(names.source
+      ? {
+          nameSettings: {
+            connectionId: names.source.connectionId,
+            sourceKey: names.source.sourceKey,
+            version: setting?.version ?? 0,
+          },
+        }
+      : {}),
     connected: node.connected,
   };
   if (!node.connected) return { state: "offline" as const, device };
@@ -238,8 +258,9 @@ export function getDockDevice(nodeId: string) {
         return { state: "error" as const, message: "请先连接 Dock Server。" };
       const snapshot = await hostInventory(options, nodeId);
       const node = snapshot.nodes.find((n) => n.nodeId === nodeId);
+      const names = await api<RuntimeDeviceNames>("/v1/runtime-devices");
       return node
-        ? inventoryDevice(node)
+        ? inventoryDevice(node, names)
         : {
             state: "error" as const,
             message: "这台设备未授权给当前 Dock 连接。",
@@ -248,6 +269,35 @@ export function getDockDevice(nodeId: string) {
       return { state: "error" as const, message: dockErrorMessage(error) };
     }
   });
+}
+
+export async function saveRuntimeDeviceName(value: unknown) {
+  try {
+    const input = runtimeDeviceNameInput.parse(value);
+    return await checkInOrder(async () => {
+      const options = await savedOptions();
+      if (!options) throw new ConnectionInputError("请先连接 Dock Server。");
+      const snapshot = await hostInventory(options, input.nodeId);
+      if (!snapshot.nodes.some((node) => node.nodeId === input.nodeId))
+        throw new ConnectionInputError("这台设备未授权给当前 Dock 连接。");
+      const setting = await api<{ customName: string | null; version: number }>(
+        "/v1/runtime-devices",
+        "PUT",
+        input,
+      );
+      return { ok: true as const, ...setting };
+    });
+  } catch (error) {
+    return {
+      ok: false as const,
+      error:
+        error instanceof z.ZodError
+          ? "名称最多 80 个字符，不能包含控制字符；请刷新核对设备后再保存。"
+          : error instanceof Error
+            ? error.message
+            : "名称保存尚未确认，请刷新核对。",
+    };
+  }
 }
 
 export async function saveDockCredential(json: string) {

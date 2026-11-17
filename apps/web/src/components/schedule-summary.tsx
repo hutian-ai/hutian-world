@@ -12,16 +12,20 @@ import { OrganizationMarkdown } from "./organization-markdown";
 export function ScheduleSummary({
   task,
   roleName,
+  showStatus = true,
 }: {
   task: ScheduledTask;
   roleName: string;
+  showStatus?: boolean;
 }) {
   return (
     <div className="space-y-6">
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">运行安排</h2>
-          <Badge variant="outline">{scheduleStatusLabels[task.status]}</Badge>
+          {showStatus && (
+            <Badge variant="outline">{scheduleStatusLabels[task.status]}</Badge>
+          )}
         </div>
         <dl className="grid grid-cols-[6rem_1fr] gap-x-4 gap-y-3 text-sm">
           <dt className="text-muted-foreground">下次运行</dt>

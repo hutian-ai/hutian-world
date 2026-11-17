@@ -14,7 +14,7 @@ export async function readRuntimeCapabilities(input: unknown) {
     );
     if (!harness) throw new Error("所选 Harness 当前不可用，请重新读取。");
     const capabilities: RuntimeCapabilities = {
-      label: `${device.device.label || device.device.nodeId} · ${harness.displayName}`,
+      label: `${device.device.customName || device.device.nodeId} · ${harness.displayName}`,
       models: harness.models,
       current: harness.defaults,
       permissionModes: harness.permissionModes,

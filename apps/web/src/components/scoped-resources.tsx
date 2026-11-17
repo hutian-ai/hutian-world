@@ -29,8 +29,8 @@ async function renderResources({
       resourceScopeOptions(),
     ]);
     return (
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="resource-page">
+        <div className="flex shrink-0 flex-wrap items-center gap-3">
           <ResourceScopePicker
             kind={kind}
             scope={scope}
@@ -50,7 +50,6 @@ async function renderResources({
           kind={kind}
           scope={scope}
           scopeLabel={space.label}
-          {...(search.source ? { initialSource: search.source } : {})}
         />
       </div>
     );
@@ -68,6 +67,6 @@ async function renderResources({
 export function ScopedResources(props: Parameters<typeof renderResources>[0]) {
   return useAsyncView(
     () => renderResources(props),
-    [props.kind, props.search.role, props.search.room, props.search.source],
+    [props.kind, props.search.role, props.search.room],
   );
 }

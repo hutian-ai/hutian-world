@@ -1,3 +1,5 @@
+import { RuntimeDevicesService } from "../runtime-devices/runtime-devices.service.js";
+import { runtimeDisplayLabel } from "@hutian-world/contracts";
 import {
   ConflictException,
   Inject,
@@ -20,6 +22,8 @@ import { ProjectsService } from "../projects/projects.service.js";
 @Injectable()
 export class RolesService {
   constructor(
+    @Inject(RuntimeDevicesService)
+    private readonly deviceNames: RuntimeDevicesService,
     @Inject(DataSource) private readonly db: DataSource,
     @Inject(AccessContexts) private readonly contexts: AccessContexts,
     @Inject(ProjectsService) private readonly projects: ProjectsService,
@@ -117,13 +121,19 @@ export class RolesService {
         workspaceId: this.scope.workspaceId,
         roleId: id,
       });
+      const names = await this.deviceNames.list(manager);
       return {
         id,
         binding: saved
           ? {
               nodeId: saved.nodeId,
               provider: saved.provider,
-              label: saved.label,
+              label: runtimeDisplayLabel(
+                saved.nodeId,
+                saved.provider,
+                names.settings.find((n) => n.nodeId === saved.nodeId)
+                  ?.customName,
+              ),
               preferences: saved.preferences,
               updatedAt: saved.updatedAt.toISOString(),
             }
@@ -149,6 +159,7 @@ export class RolesService {
           }),
         ])
       : [[], []];
+    const names = await this.deviceNames.list();
     return roles.map((r) => {
       const chat = chatIdentities.find((c) => c.roleId === r.id);
       const runtime = runtimeBindings.find((b) => b.roleId === r.id);
@@ -166,7 +177,12 @@ export class RolesService {
           ? {
               nodeId: runtime.nodeId,
               provider: runtime.provider,
-              label: runtime.label,
+              label: runtimeDisplayLabel(
+                runtime.nodeId,
+                runtime.provider,
+                names.settings.find((n) => n.nodeId === runtime.nodeId)
+                  ?.customName,
+              ),
               preferences: runtime.preferences,
               updatedAt: runtime.updatedAt.toISOString(),
             }

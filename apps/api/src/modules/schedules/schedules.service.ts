@@ -1,3 +1,4 @@
+import { RuntimeDevicesService } from "../runtime-devices/runtime-devices.service.js";
 import {
   BadRequestException,
   ConflictException,
@@ -18,6 +19,7 @@ import {
   type ScheduleCalendarItem,
   scheduleCalendarQuery,
   scheduleInput,
+  runtimeDisplayLabel,
 } from "@hutian-world/contracts";
 import type { z } from "zod";
 import { AccessContexts } from "../access/access-context.service.js";
@@ -46,6 +48,8 @@ const active = [
 @Injectable()
 export class SchedulesService {
   constructor(
+    @Inject(RuntimeDevicesService)
+    private readonly deviceNames: RuntimeDevicesService,
     @Inject(DataSource) private readonly db: DataSource,
     @Inject(AccessContexts) private readonly contexts: AccessContexts,
   ) {}
@@ -321,6 +325,7 @@ export class SchedulesService {
       roleId: task.role_id,
       workspaceId: task.workspace_id,
     });
+    const names = await this.deviceNames.list(manager);
     const snapshot = {
       ...scheduleInput.strip().parse(task.definition),
       conversationMode: "per_run" as const,
@@ -329,7 +334,12 @@ export class SchedulesService {
         ? {
             nodeId: binding.nodeId,
             provider: binding.provider,
-            label: binding.label,
+            label: runtimeDisplayLabel(
+              binding.nodeId,
+              binding.provider,
+              names.settings.find((n) => n.nodeId === binding.nodeId)
+                ?.customName,
+            ),
             preferences: binding.preferences,
             updatedAt: binding.updatedAt.toISOString(),
           }

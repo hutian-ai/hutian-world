@@ -36,6 +36,53 @@ export const runtimeReference = z
   })
   .strict();
 export type RuntimeReference = z.infer<typeof runtimeReference>;
+
+/** Only explicit Hutian names override the stable device identity. */
+export function runtimeDisplayLabel(
+  nodeId: string,
+  provider?: string | null,
+  customName?: string | null,
+) {
+  const harness =
+    provider === "codex"
+      ? "Codex"
+      : provider === "dsh"
+        ? "DeepSeek Harness"
+        : provider;
+  return [customName?.trim() || nodeId, harness].filter(Boolean).join(" · ");
+}
+
+export const runtimeDeviceNameInput = z
+  .object({
+    nodeId: z.uuid(),
+    connectionId: z.uuid(),
+    sourceKey: z.string().regex(/^[a-f0-9]{64}$/),
+    customName: z
+      .string()
+      .trim()
+      .max(80)
+      .refine(
+        (value) =>
+          [...value].every(
+            (character) =>
+              character.charCodeAt(0) >= 32 && character.charCodeAt(0) !== 127,
+          ),
+        "名称不能包含控制字符",
+      )
+      .nullable()
+      .transform((value) => value || null),
+    expectedVersion: z.number().int().nonnegative(),
+  })
+  .strict();
+export type RuntimeDeviceNameInput = z.infer<typeof runtimeDeviceNameInput>;
+export type RuntimeDeviceNames = {
+  source: {
+    workspaceId: string;
+    connectionId: string;
+    sourceKey: string;
+  } | null;
+  settings: { nodeId: string; customName: string | null; version: number }[];
+};
 export const executionPreferences = z
   .object({
     model: z.string().trim().min(1).max(200).optional(),

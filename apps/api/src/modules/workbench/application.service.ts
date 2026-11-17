@@ -1,3 +1,5 @@
+import { RuntimeDevicesService } from "../runtime-devices/runtime-devices.service.js";
+import { runtimeDeviceNameInput } from "@hutian-world/contracts";
 import { Inject, Injectable } from "@nestjs/common";
 import { z } from "zod";
 import {
@@ -22,6 +24,8 @@ import { bindApplicationServices } from "./services/api.js";
 @Injectable()
 export class WorkbenchApplication {
   constructor(
+    @Inject(RuntimeDevicesService)
+    private readonly devices: RuntimeDevicesService,
     @Inject(AccessContexts) private readonly contexts: AccessContexts,
     @Inject(WorkspaceService) private readonly workspace: WorkspaceService,
     @Inject(RolesService) private readonly roles: RolesService,
@@ -47,6 +51,11 @@ export class WorkbenchApplication {
         : rawId;
     if (resource === "access" && method === "GET")
       return this.contexts.current();
+    if (resource === "runtime-devices") {
+      if (method === "GET") return this.devices.list();
+      if (method === "PUT")
+        return this.devices.save(runtimeDeviceNameInput.parse(body));
+    }
     if (resource === "workspace" && method === "GET")
       return this.workspace.overview();
     if (resource === "roles") {

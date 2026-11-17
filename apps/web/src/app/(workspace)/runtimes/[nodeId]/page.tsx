@@ -1,3 +1,4 @@
+import { RuntimeDeviceName } from "@/components/runtime-device-name";
 import Link from "@/lib/navigation";
 import { ArrowRight, HardDrive, ServerCog } from "lucide-react";
 import { notFound } from "@/lib/navigation";
@@ -13,14 +14,7 @@ import {
   AlertTitle,
 } from "@hutian-ai/design/ui/alert";
 import { Badge } from "@hutian-ai/design/ui/badge";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@hutian-ai/design/ui/breadcrumb";
+import { PageNavigation } from "@/components/page-navigation";
 import {
   Table,
   TableBody,
@@ -52,27 +46,17 @@ export default async function RuntimeDevicePage({
   ).length;
   return (
     <>
+      <PageNavigation
+        items={[{ label: "运行环境", href: "/runtimes" }, { label: title }]}
+      />
       <ObjectHeader
-        path={
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link href="/runtimes" prefetch={false}>
-                    运行环境
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{title}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-        }
         media={<HardDrive className="size-5" />}
         title={title}
-        description="查看这台电脑的当前连接状态及其 Runtime。"
+        description={
+          result.state !== "error" && result.device.customName
+            ? `设备编号：${nodeId}`
+            : "查看这台电脑的当前连接状态及其 Runtime。"
+        }
         metadata={
           <>
             {(result.state === "online" || result.state === "offline") && (
@@ -83,7 +67,14 @@ export default async function RuntimeDevicePage({
             )}
           </>
         }
-        action={<RefreshDockButton />}
+        action={
+          <div className="flex items-center gap-2">
+            {result.state !== "error" && (
+              <RuntimeDeviceName device={result.device} />
+            )}
+            <RefreshDockButton />
+          </div>
+        }
       />
       <section
         aria-labelledby="runtime-instance-directory-title"

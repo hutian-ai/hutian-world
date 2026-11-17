@@ -1,7 +1,7 @@
 import type { DockDevice } from "@/lib/dock";
 
 export function deviceLabel(device: DockDevice) {
-  return device.nodeId;
+  return device.customName?.trim() || device.nodeId;
 }
 
 const runtimeStatuses: Record<string, string> = {
