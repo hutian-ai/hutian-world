@@ -304,12 +304,19 @@ export async function askConversation(
       value.useKnowledge !== false,
       await conversationResourceScopes(app, value.roomId, role?.id),
     );
+    const roleContext = role ? roleExecutionContext(role) : undefined;
     const request = {
       roomId: value.roomId,
       eventId: value.eventId,
       agentId: value.agentId,
       context: {
-        ...(role ? roleExecutionContext(role) : {}),
+        ...roleContext,
+        instructions: [
+          roleContext?.instructions,
+          "长期记忆由 hutian 服务端按本次成员与会话授权管理。使用宿主提供的记忆资料，以及本次可用的 search_context、read_memory、remember、update_memory、forget 等工具检索和维护记忆；未提供工具或未取得资料时如实说明。不要读取或写入设备用户的 Codex memories（包括 ~/.codex/memories）；不要用个人原生记忆替代未授权或未检索到的 hutian 记忆。当前任务的会话上下文、文件和执行产物仍可按授权使用，资料原文通过知识库工具读取。",
+        ]
+          .filter(Boolean)
+          .join("\n\n"),
         ...(runtimeLabel ? { runtimeLabel } : {}),
         ...(material ? { material } : {}),
         references,
@@ -331,6 +338,14 @@ export async function askConversation(
         nodeId: selectedRuntime.nodeId,
         provider: selectedRuntime.provider,
         ...execution,
+        ...(selectedRuntime.provider === "codex"
+          ? {
+              config: {
+                ...execution.config,
+                nativeMemory: "disabled" as const,
+              },
+            }
+          : {}),
         connectionId: "workspace",
         interactive: true,
         ...(value.executionMode === undefined

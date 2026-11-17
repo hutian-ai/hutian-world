@@ -15,6 +15,8 @@ Hutian World 是模块化单体：React/Vite 静态 Web 与 Nest/Fastify API 分
 | Memory Access / Knowledge Gateway | 各自的原文、操作、索引及后端适配 |
 | Hutian Design | 主题、基础 UI、Chat 呈现；不依赖 World 业务契约 |
 
+2026-11-17：hutian 的新 Codex 请求由服务端统一管理长期记忆，显式关闭该运行的原生记忆读取和生成；原生会话续接与任务文件保留。其他 Dock 调用方和个人 Codex 设置不变。配置、旧会话边界及实测范围见 [服务端长期记忆](server-owned-memory-2026-11-17.md)。
+
 不为内部层次新增服务、数据库或通用调度引擎。Runtime 配置归成员，提交后的请求保留冻结快照；更换成员 Runtime 不重放旧工作。
 
 ## 代码依赖
