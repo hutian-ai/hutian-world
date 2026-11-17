@@ -1,8 +1,8 @@
 import type {
   ScheduleInput,
+  ScheduledRun,
   ScheduledRunSnapshot,
   ScheduledTask,
-  ScheduledRun,
 } from "@hutian-world/contracts";
 import { scheduleInput } from "@hutian-world/contracts";
 import { nextScheduleStart } from "@hutian-world/contracts/schedule-time";
@@ -33,6 +33,8 @@ export type RunRow = AuthorityRow & {
   scheduled_at: Date;
   manual: boolean;
   lease_until: Date | null;
+  observe_attempts: number;
+  next_observe_at: Date | null;
   state: ScheduledRun["state"];
   snapshot: ScheduledRunSnapshot;
   event_id: string | null;

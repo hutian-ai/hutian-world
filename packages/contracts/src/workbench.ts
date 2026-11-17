@@ -1,10 +1,23 @@
+export type MemoryDocument = {
+  id: string;
+  title: string;
+  sourceTitle?: string;
+  createdAt: string;
+  status: string;
+};
+export type {
+  ChatDirectory,
+  ChatRole,
+  Conversation,
+  RoomKind,
+} from "./conversation.js";
 // Public request/response types for the Web application. No server imports.
 import type * as Contracts from "./index.js";
 import type {
   RoleRuntimeBinding,
-  ScheduledTask,
-  ScheduledRun,
   ScheduleCalendarItem,
+  ScheduledRun,
+  ScheduledTask,
 } from "./index.js";
 export type RuntimeCapabilities = {
   label: string;
@@ -39,156 +52,6 @@ export type ChatMessage = {
   replyTo: string | null;
 };
 export type ChatEntry = { peer: ChatPeer; exists: boolean };
-export type ChatRole = {
-  name: string;
-  description: string;
-  id: string;
-  runtimeBinding: Contracts.RoleRuntimeBinding | null;
-  chatIdentity: Contracts.RoleChatIdentity | null;
-};
-export type ChatDirectory = {
-  rooms: { id: string; name: string; kind: "direct" | "group" | "channel" }[];
-  agents: {
-    id: string;
-    userId: string;
-    name: string;
-    description: string;
-    joined?: boolean | undefined;
-    roleId?: string | undefined;
-    runtimeBinding?:
-      | {
-          nodeId: string;
-          provider: string;
-          label: string;
-          preferences: {
-            model?: string | undefined;
-            effort?: string | undefined;
-            mode?: string | undefined;
-            serviceTier?: string | undefined;
-          };
-          updatedAt: string;
-        }
-      | null
-      | undefined;
-  }[];
-} & { roles: ChatRole[] };
-export type Conversation = {
-  room: { id: string; name: string };
-  members: { id: string; name: string; kind: string }[];
-  agents: {
-    id: string;
-    userId: string;
-    name: string;
-    description: string;
-    joined?: boolean | undefined;
-    roleId?: string | undefined;
-    runtimeBinding?:
-      | {
-          nodeId: string;
-          provider: string;
-          label: string;
-          preferences: {
-            model?: string | undefined;
-            effort?: string | undefined;
-            mode?: string | undefined;
-            serviceTier?: string | undefined;
-          };
-          updatedAt: string;
-        }
-      | null
-      | undefined;
-  }[];
-  messages: {
-    id: string;
-    text: string;
-    timestamp: number;
-    sender: string;
-    name: string;
-    agentId: string | null;
-    replyTo: string | null;
-    attachments: { id: string; name: string; mime: string; size: number }[];
-    mentionedUserIds: string[];
-  }[];
-  jobs: {
-    agentId: string;
-    eventId: string;
-    runId: string | null;
-    state: string;
-    error: string | null;
-    instructionsVersion?: string | null | undefined;
-    instructionsLabel?: string | null | undefined;
-    instructionsSource?: string | null | undefined;
-    runtimeLabel?: string | null | undefined;
-    nodeId?: string | null | undefined;
-    provider?: string | null | undefined;
-    model?: string | null | undefined;
-    config?:
-      | {
-          effort?: string | undefined;
-          mode?: string | undefined;
-          serviceTier?: string | undefined;
-        }
-      | null
-      | undefined;
-    activity?:
-      | {
-          version: 1;
-          runId: string;
-          revision: number;
-          state: string;
-          startedAt: string;
-          finishedAt: string | null;
-          steering: boolean;
-          historyTruncated: boolean;
-          events: {
-            sequence: number;
-            at: string;
-            type: string;
-            payload: Record<string, unknown>;
-          }[];
-          interactions: {
-            id: string;
-            title: string;
-            status: string;
-            canAllow: boolean;
-            details?: unknown;
-            options?:
-              { optionId: string; name: string; kind: string }[] | undefined;
-            form?:
-              | {
-                  mode: string;
-                  message: string;
-                  requestedSchema?: Record<string, unknown> | undefined;
-                  url?: string | undefined;
-                }
-              | undefined;
-          }[];
-          commands: {
-            id: string;
-            kind: string;
-            status: string;
-            at: string;
-            result?: unknown;
-          }[];
-          outputs: { reference: string; name: string; sha256: string }[];
-          outputsState: "pending" | "available" | "none" | "unconfirmed";
-        }
-      | null
-      | undefined;
-    replyEventId?: string | null | undefined;
-    references?: { id: string; title: string; url: string }[];
-  }[];
-  queue: {
-    id: string;
-    eventId: string;
-    agentId: string;
-    state: "queued" | "paused";
-    createdAt: number;
-  }[];
-  active: { agentId: string; roomId: string; eventId: string } | null;
-  nextCursor: string | null;
-};
-export type RoomKind = "direct" | "group" | "channel";
 export type Reference = {
   id: string;
   kind: "memory" | "knowledge";
@@ -237,22 +100,19 @@ export type ResourceScope =
   | { kind: "conversation"; id: string };
 
 export interface WorkbenchCommands {
-  "actions.saveProject": (
+  "projects.save": (
     _state: ActionState,
     form: FormData,
   ) => Promise<ActionState>;
-  "actions.saveRole": (
+  "members.save": (_state: ActionState, form: FormData) => Promise<ActionState>;
+  "projects.changeMembership": (
     _state: ActionState,
     form: FormData,
   ) => Promise<ActionState>;
-  "actions.changeMembership": (
-    _state: ActionState,
-    form: FormData,
-  ) => Promise<ActionState>;
-  "chat-actions.openPrivateConversation": (
+  "conversations.openPrivate": (
     value: string,
   ) => Promise<{ ok: true; error?: undefined } | { ok: false; error: string }>;
-  "chat-actions.sendPrivateMessage": (
+  "conversations.sendPrivate": (
     value: string,
     text: string,
     transactionId: string,
@@ -260,160 +120,40 @@ export interface WorkbenchCommands {
     | { ok: false; error: string; eventId?: undefined }
     | { ok: true; eventId: string; error?: undefined }
   >;
-  "chat-result-actions.saveChatResult": (
-    input: unknown,
-  ) => Promise<
+  "resources.saveChatResult": (input: {
+    id: string;
+    roomId: string;
+    eventId: string;
+    kind: "memory" | "knowledge";
+    title: string;
+    content: string;
+    scope: ResourceScope;
+  }) => Promise<
     | { ok: true; status: string; error?: undefined }
     | { ok: false; error: string; status?: undefined }
   >;
-  "communication-actions.refreshConversation": (id: string) => Promise<
+  "conversations.refreshConversation": (id: string) => Promise<
     | { ok: false; error: string }
     | {
         ok: true;
-        conversation: {
-          agents: {
-            id: string;
-            userId: string;
-            name: string;
-            description: string;
-            joined?: boolean | undefined;
-            roleId?: string | undefined;
-            runtimeBinding?:
-              | {
-                  nodeId: string;
-                  provider: string;
-                  label: string;
-                  preferences: {
-                    model?: string | undefined;
-                    effort?: string | undefined;
-                    mode?: string | undefined;
-                    serviceTier?: string | undefined;
-                  };
-                  updatedAt: string;
-                }
-              | null
-              | undefined;
-          }[];
-          members: { id: string; name: string; kind: string }[];
-          messages: {
-            id: string;
-            text: string;
-            timestamp: number;
-            sender: string;
-            name: string;
-            agentId: string | null;
-            replyTo: string | null;
-            attachments: {
-              id: string;
-              name: string;
-              mime: string;
-              size: number;
-            }[];
-            mentionedUserIds: string[];
-          }[];
-          room: { id: string; name: string };
-          jobs: {
-            agentId: string;
-            eventId: string;
-            runId: string | null;
-            state: string;
-            error: string | null;
-            instructionsVersion?: string | null | undefined;
-            instructionsLabel?: string | null | undefined;
-            instructionsSource?: string | null | undefined;
-            runtimeLabel?: string | null | undefined;
-            nodeId?: string | null | undefined;
-            provider?: string | null | undefined;
-            model?: string | null | undefined;
-            config?:
-              | {
-                  effort?: string | undefined;
-                  mode?: string | undefined;
-                  serviceTier?: string | undefined;
-                }
-              | null
-              | undefined;
-            activity?:
-              | {
-                  version: 1;
-                  runId: string;
-                  revision: number;
-                  state: string;
-                  startedAt: string;
-                  finishedAt: string | null;
-                  steering: boolean;
-                  historyTruncated: boolean;
-                  events: {
-                    sequence: number;
-                    at: string;
-                    type: string;
-                    payload: Record<string, unknown>;
-                  }[];
-                  interactions: {
-                    id: string;
-                    title: string;
-                    status: string;
-                    canAllow: boolean;
-                    details?: unknown;
-                    options?:
-                      | { optionId: string; name: string; kind: string }[]
-                      | undefined;
-                    form?:
-                      | {
-                          mode: string;
-                          message: string;
-                          requestedSchema?: Record<string, unknown> | undefined;
-                          url?: string | undefined;
-                        }
-                      | undefined;
-                  }[];
-                  commands: {
-                    id: string;
-                    kind: string;
-                    status: string;
-                    at: string;
-                    result?: unknown;
-                  }[];
-                  outputs: {
-                    reference: string;
-                    name: string;
-                    sha256: string;
-                  }[];
-                  outputsState:
-                    "pending" | "available" | "none" | "unconfirmed";
-                }
-              | null
-              | undefined;
-            replyEventId?: string | null | undefined;
-            references?: { id: string; title: string; url: string }[];
-          }[];
-          queue: {
-            id: string;
-            eventId: string;
-            agentId: string;
-            state: "queued" | "paused";
-            createdAt: number;
-          }[];
-          active: { agentId: string; roomId: string; eventId: string } | null;
-          nextCursor: string | null;
-        };
+        conversation: Contracts.Conversation;
       }
   >;
-  "communication-actions.createCommunication": (
-    input: unknown,
+  "conversations.createCommunication": (
+    input: Contracts.CreateCommunicationInput,
   ) => Promise<{ ok: false; error: string } | { ok: true; roomId: string }>;
-  "communication-actions.openRoleConversation": (
+  "conversations.openRoleConversation": (
     id: string,
   ) => Promise<{ ok: false; error: string } | { ok: true; roomId: string }>;
-  "communication-actions.postConversation": (
-    input: unknown,
+  "conversations.postConversation": (
+    input: Contracts.PostConversationInput,
   ) => Promise<{ ok: false; error: string } | { ok: true; eventId: string }>;
-  "communication-actions.askConversation": (
-    input: unknown,
+  "conversations.askConversation": (
+    input: Contracts.AskConversationInput,
   ) => Promise<
     { ok: false; error: string } | { ok: true; references: Reference[] }
   >;
-  "communication-actions.discoverChatRuntimes": () => Promise<
+  "conversations.discoverChatRuntimes": () => Promise<
     | { ok: false; error: string }
     | {
         ok: true;
@@ -421,140 +161,161 @@ export interface WorkbenchCommands {
         runtimes: { nodeId: string; provider: string; label: string }[];
       }
   >;
-  "communication-actions.controlConversation": (
-    input: unknown,
+  "conversations.controlConversation": (
+    input: Contracts.ControlConversationInput,
   ) => Promise<{ ok: false; error: string } | { ok: true; result: unknown }>;
-  "communication-actions.controlConversationQueue": (
-    input: unknown,
+  "conversations.controlConversationQueue": (
+    input: Contracts.ControlConversationQueueInput,
   ) => Promise<{ ok: false; error: string } | { ok: true }>;
-  "communication-actions.retrieveConversationOutputs": (
-    input: unknown,
+  "conversations.retrieveConversationOutputs": (
+    input: Contracts.RetrieveConversationOutputsInput,
   ) => Promise<{ ok: false; error: string } | { ok: true }>;
-  "communication-actions.handoffConversation": (
-    input: unknown,
+  "conversations.handoffConversation": (
+    input: Contracts.HandoffConversationInput,
   ) => Promise<{ ok: false; error: string } | { ok: true; eventId: string }>;
-  "communication-actions.inviteConversation": (
+  "conversations.inviteConversation": (
     id: string,
     peer: string,
   ) => Promise<{ ok: false; error: string } | { ok: true }>;
-  "dock-actions.connectDockFromFile": (
+  "runtimes.connectDockFromFile": (
     form: FormData,
   ) => Promise<{ ok: false; error: string } | { ok: true; error?: undefined }>;
-  "execution-settings-actions.readRuntimeCapabilities": (
-    input: unknown,
+  "runtimes.readRuntimeCapabilities": (
+    input: Contracts.RuntimeReference,
   ) => Promise<
     | { ok: true; capabilities: RuntimeCapabilities; error?: undefined }
     | { ok: false; error: string; capabilities?: undefined }
   >;
-  "resource-actions.loadResources": (
+  "resources.loadResources": (
     kind: "memory" | "knowledge",
     scope?: ResourceScope,
+    cursor?: string,
   ) => Promise<
     | { ok: false; error: string }
     | {
         ok: true;
-        data:
-          | {
-              resource: string;
-              documents: any[];
-              writeMode: "infer" | "verbatim";
-            }
-          | {
-              resource: string;
-              documents: {
-                id: string;
-                title: string;
-                createdAt: string;
-                status: string;
-              }[];
-              writeMode?: undefined;
-            }
-          | { documents: KnowledgeDocument[] };
+        data: {
+          documents: (MemoryDocument | KnowledgeDocument)[];
+          nextCursor: string | null;
+          resource?: string;
+          writeMode?: "infer" | "verbatim";
+        };
       }
   >;
-  "resource-actions.saveResource": (
+  "resources.saveResource": (
     kind: "memory" | "knowledge",
-    input: unknown,
+    input: { id: string; title: string; content: string },
     scope?: ResourceScope,
-  ) => Promise<{ ok: false; error: string } | { ok: true; data: any }>;
-  "resource-actions.findResources": (
+  ) => Promise<
+    | { ok: false; error: string }
+    | { ok: true; data: { status?: string; [key: string]: unknown } }
+  >;
+  "resources.findResources": (
     kind: "memory" | "knowledge",
     query: string,
     scope?: ResourceScope,
   ) => Promise<
     { ok: false; error: string } | { ok: true; references: Reference[] }
   >;
-  "resource-actions.readMemorySource": (
+  "resources.readMemorySource": (
     id: string,
     scope?: ResourceScope,
-  ) => Promise<{ ok: false; error: string } | { ok: true; data: any }>;
-  "resource-actions.readKnowledgeSource": (
+  ) => Promise<
+    | { ok: false; error: string }
+    | {
+        ok: true;
+        data: {
+          original_text?: string;
+          document_metadata?: Record<string, unknown> | null;
+          provided_by?: string;
+        };
+      }
+  >;
+  "resources.readKnowledgeSource": (
     id: string,
     scope?: ResourceScope,
   ) => Promise<
     { ok: true; data: KnowledgeDocument } | { ok: false; error: string }
   >;
-  "resource-actions.inspectResourcePlugins": (scope?: ResourceScope) => Promise<
+  "resources.inspectResourcePlugins": (scope?: ResourceScope) => Promise<
     Array<{
       id: string;
       kind: "memory" | "knowledge";
       status: "ready" | "unconfigured" | "unavailable";
     }>
   >;
-  "resource-actions.observeMemory": (
+  "resources.observeMemory": (
     id: string,
     scope?: ResourceScope,
-  ) => Promise<{ ok: false; error: string } | { ok: true; data: any }>;
-  "role-runtime-actions.saveRoleRuntime": (
+  ) => Promise<
+    | { ok: false; error: string }
+    | {
+        ok: true;
+        data: { status: string; operation_id?: string; [key: string]: unknown };
+      }
+  >;
+  "members.setRuntime": (
     id: string,
-    input: unknown,
-    expected: unknown,
+    input:
+      | (Contracts.RuntimeReference & {
+          preferences?: Contracts.ExecutionPreferences;
+        })
+      | null,
+    expected: string | null,
   ) => Promise<
     | { ok: true; binding: RoleRuntimeBinding | null; error?: undefined }
     | { ok: false; error: string; binding?: undefined }
   >;
-  "schedule-actions.loadSchedules": () => Promise<
+  "schedules.loadSchedules": () => Promise<
     | { ok: false; error: string }
-    | { tasks: ScheduledTask[]; runs: ScheduledRun[]; ok: true }
+    | {
+        tasks: ScheduledTask[];
+        runs: ScheduledRun[];
+        nextCursor: string | null;
+        ok: true;
+      }
   >;
-  "schedule-actions.loadSchedule": (
-    id: string,
-  ) => Promise<
+  "schedules.loadSchedule": (id: string) => Promise<
     | { ok: false; error: string }
-    | { task: ScheduledTask; runs: ScheduledRun[]; ok: true }
+    | {
+        task: ScheduledTask;
+        runs: ScheduledRun[];
+        nextCursor: string | null;
+        ok: true;
+      }
   >;
-  "schedule-actions.loadScheduledRun": (
+  "schedules.loadScheduledRun": (
     id: string,
   ) => Promise<{ ok: false; error: string } | { ok: true; run: ScheduledRun }>;
-  "schedule-actions.deleteSchedule": (
+  "schedules.deleteSchedule": (
     id: string,
     expectedRevision: number,
   ) => Promise<{ ok: false; error: string } | { ok: true }>;
-  "schedule-actions.loadScheduleCalendar": (
-    input: unknown,
+  "schedules.loadScheduleCalendar": (
+    input: import("zod").input<typeof Contracts.scheduleCalendarQuery>,
   ) => Promise<
     | { ok: false; error: string }
     | { items: ScheduleCalendarItem[]; timeZone: string; ok: true }
   >;
-  "schedule-actions.saveSchedule": (
-    input: unknown,
+  "schedules.saveSchedule": (
+    input: import("zod").input<typeof Contracts.scheduleInput>,
     expectedRevision: number | null,
   ) => Promise<
     { ok: false; error: string } | { ok: true; task: ScheduledTask }
   >;
-  "schedule-actions.toggleSchedule": (
+  "schedules.toggleSchedule": (
     id: string,
     enabled: boolean,
     expectedRevision: number,
   ) => Promise<{ ok: false; error: string } | { ok: true }>;
-  "schedule-actions.runSchedule": (
+  "schedules.runSchedule": (
     id: string,
     requestId: string,
   ) => Promise<{ ok: false; error: string } | { ok: true; run: ScheduledRun }>;
-  "schedule-actions.previewScheduleRule": (
-    input: unknown,
+  "schedules.previewScheduleRule": (
+    input: import("zod").input<typeof Contracts.scheduleRule>,
   ) => Promise<{ ok: false; error: string } | { starts: string[]; ok: true }>;
-  "schedule-actions.readScheduledResult": (id: string) => Promise<
+  "schedules.readScheduledResult": (id: string) => Promise<
     | { ok: false; error: string }
     | {
         ok: true;
@@ -569,14 +330,14 @@ export interface WorkbenchCommands {
         outputsState: "pending" | "available" | "none" | "unconfirmed" | null;
       }
   >;
-  "schedule-data.scheduleChoices": () => Promise<{
+  "schedules.scheduleChoices": () => Promise<{
     roles: { id: string; name: string; configured: boolean }[];
   }>;
-  "role-runtime.roleRuntimeChoices": () => Promise<{
+  "members.runtimeChoices": () => Promise<{
     choices: RoleRuntimeChoice[];
     error: string;
   }>;
-  "direct-chat.getDirectChat": (selectedId?: string) => Promise<
+  "conversations.direct": (selectedId?: string) => Promise<
     | {
         directory: {
           peer: {
@@ -637,7 +398,7 @@ export interface WorkbenchCommands {
         error: string;
       }
   >;
-  "communications.readDirectory": () => Promise<{
+  "conversations.directory": () => Promise<{
     agents: {
       id: string;
       userId: string;
@@ -670,133 +431,18 @@ export interface WorkbenchCommands {
     }[];
     rooms: { id: string; name: string; kind: "direct" | "group" | "channel" }[];
   }>;
-  "communications.readConversation": (
+  "conversations.read": (
     id: string,
     cursor?: string,
-  ) => Promise<{
-    agents: {
-      id: string;
-      userId: string;
-      name: string;
-      description: string;
-      joined?: boolean | undefined;
-      roleId?: string | undefined;
-      runtimeBinding?:
-        | {
-            nodeId: string;
-            provider: string;
-            label: string;
-            preferences: {
-              model?: string | undefined;
-              effort?: string | undefined;
-              mode?: string | undefined;
-              serviceTier?: string | undefined;
-            };
-            updatedAt: string;
-          }
-        | null
-        | undefined;
-    }[];
-    members: { id: string; name: string; kind: string }[];
-    messages: {
-      id: string;
-      text: string;
-      timestamp: number;
-      sender: string;
-      name: string;
-      agentId: string | null;
-      replyTo: string | null;
-      attachments: { id: string; name: string; mime: string; size: number }[];
-      mentionedUserIds: string[];
-    }[];
-    room: { id: string; name: string };
-    jobs: {
-      agentId: string;
-      eventId: string;
-      runId: string | null;
-      state: string;
-      error: string | null;
-      instructionsVersion?: string | null | undefined;
-      instructionsLabel?: string | null | undefined;
-      instructionsSource?: string | null | undefined;
-      runtimeLabel?: string | null | undefined;
-      nodeId?: string | null | undefined;
-      provider?: string | null | undefined;
-      model?: string | null | undefined;
-      config?:
-        | {
-            effort?: string | undefined;
-            mode?: string | undefined;
-            serviceTier?: string | undefined;
-          }
-        | null
-        | undefined;
-      activity?:
-        | {
-            version: 1;
-            runId: string;
-            revision: number;
-            state: string;
-            startedAt: string;
-            finishedAt: string | null;
-            steering: boolean;
-            historyTruncated: boolean;
-            events: {
-              sequence: number;
-              at: string;
-              type: string;
-              payload: Record<string, unknown>;
-            }[];
-            interactions: {
-              id: string;
-              title: string;
-              status: string;
-              canAllow: boolean;
-              details?: unknown;
-              options?:
-                { optionId: string; name: string; kind: string }[] | undefined;
-              form?:
-                | {
-                    mode: string;
-                    message: string;
-                    requestedSchema?: Record<string, unknown> | undefined;
-                    url?: string | undefined;
-                  }
-                | undefined;
-            }[];
-            commands: {
-              id: string;
-              kind: string;
-              status: string;
-              at: string;
-              result?: unknown;
-            }[];
-            outputs: { reference: string; name: string; sha256: string }[];
-            outputsState: "pending" | "available" | "none" | "unconfirmed";
-          }
-        | null
-        | undefined;
-      replyEventId?: string | null | undefined;
-      references?: { id: string; title: string; url: string }[];
-    }[];
-    queue: {
-      id: string;
-      eventId: string;
-      agentId: string;
-      state: "queued" | "paused";
-      createdAt: number;
-    }[];
-    active: { agentId: string; roomId: string; eventId: string } | null;
-    nextCursor: string | null;
-  }>;
-  "dock.saveRuntimeDeviceName": (
+  ) => Promise<Contracts.Conversation>;
+  "runtimes.renameDevice": (
     input: Contracts.RuntimeDeviceNameInput,
   ) => Promise<
     | { ok: true; customName: string | null; version: number }
     | { ok: false; error: string }
   >;
-  "dock.getDockConnection": () => Promise<DockConnection>;
-  "dock.getDockDevice": (nodeId: string) => Promise<
+  "runtimes.connection": () => Promise<DockConnection>;
+  "runtimes.device": (nodeId: string) => Promise<
     | {
         state: "offline";
         device: DockDevice;
@@ -841,7 +487,7 @@ export interface WorkbenchCommands {
       }
     | { state: "error"; message: string }
   >;
-  "resource-scopes.resolveResourceScope": (input?: ResourceScope) => Promise<
+  "resources.resolveResourceScope": (input?: ResourceScope) => Promise<
     | { key: string; label: string; description: string; kind: "workspace" }
     | {
         key: string;
@@ -858,7 +504,7 @@ export interface WorkbenchCommands {
         id: string;
       }
   >;
-  "resource-scopes.resourceScopeOptions": () => Promise<{
+  "resources.resourceScopeOptions": () => Promise<{
     options: { scope: ResourceScope; label: string }[];
     conversationsUnavailable: boolean;
   }>;

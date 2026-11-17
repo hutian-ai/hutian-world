@@ -1,8 +1,8 @@
-import { Inject, Injectable } from "@nestjs/common";
 import type { Workspace } from "@hutian-world/contracts";
+import { Inject, Injectable } from "@nestjs/common";
 import { AccessContexts } from "../access/access-context.service.js";
-import { RolesService } from "../roles/roles.service.js";
 import { ProjectsService } from "../projects/projects.service.js";
+import { RolesService } from "../roles/roles.service.js";
 @Injectable()
 export class WorkspaceService {
   constructor(

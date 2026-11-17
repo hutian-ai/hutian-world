@@ -1,28 +1,22 @@
 "use client";
-import Link from "@/lib/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useRouter, useSearchParams } from "@/lib/navigation";
-import { CalendarDays, List, Plus, RefreshCw, Search } from "lucide-react";
-import type { ScheduledTask, ScheduledRun } from "@hutian-world/contracts";
+import { api } from "@/lib/api";
+import type { Page } from "@hutian-world/contracts";
+import Link, { useRouter, useSearchParams } from "@/lib/navigation";
 import {
   loadSchedule,
-  loadSchedules,
   loadScheduledRun,
+  loadSchedules,
 } from "@/lib/schedule-actions";
 import {
-  scheduledWorkHref,
   scheduleAt,
+  scheduledWorkHref,
   scheduleHref,
   scheduleStateLabels,
   scheduleStatusLabels,
   scheduleSummary,
 } from "@/lib/schedule-display";
-import { ScheduleCalendar } from "./schedule-calendar";
-import { ScheduleActions } from "./schedule-actions";
-import { ScheduleSummary } from "./schedule-summary";
-import { ScheduleDayPreview } from "./schedule-day-preview";
-import { ScheduleRuns, ScheduleRunResult } from "./schedule-runs";
+import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
+import { Badge } from "@hutian-ai/design/ui/badge";
 import { Button } from "@hutian-ai/design/ui/button";
 import { Input } from "@hutian-ai/design/ui/input";
 import {
@@ -33,6 +27,14 @@ import {
   SelectValue,
 } from "@hutian-ai/design/ui/select";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@hutian-ai/design/ui/sheet";
+import {
   Table,
   TableBody,
   TableCell,
@@ -40,8 +42,6 @@ import {
   TableHeader,
   TableRow,
 } from "@hutian-ai/design/ui/table";
-import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
-import { Badge } from "@hutian-ai/design/ui/badge";
 import {
   Tabs,
   TabsContent,
@@ -52,17 +52,22 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@hutian-ai/design/ui/toggle-group";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@hutian-ai/design/ui/sheet";
+import type { ScheduledRun, ScheduledTask } from "@hutian-world/contracts";
+import { CalendarDays, List, Plus, RefreshCw, Search } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ScheduleActions } from "./schedule-actions";
+import { ScheduleCalendar } from "./schedule-calendar";
+import { ScheduleDayPreview } from "./schedule-day-preview";
+import { ScheduleRunResult, ScheduleRuns } from "./schedule-runs";
+import { ScheduleSummary } from "./schedule-summary";
 
 type Props = {
-  initial: { tasks: ScheduledTask[]; runs: ScheduledRun[] };
+  initial: {
+    tasks: ScheduledTask[];
+    runs: ScheduledRun[];
+    nextCursor?: string | null;
+  };
   roles: { id: string; name: string }[];
 };
 export function SchedulesWorkspace({ initial, roles }: Props) {
@@ -78,6 +83,29 @@ export function SchedulesWorkspace({ initial, roles }: Props) {
       ReturnType<typeof loadSchedule>
     > | null>(null),
     [peekRetry, setPeekRetry] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  async function loadMore() {
+    if (!data.nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await api<Page<ScheduledRun>>(
+        `/v2/scheduled-runs?cursor=${encodeURIComponent(data.nextCursor)}`,
+      );
+      setData((old) => ({
+        ...old,
+        runs: [
+          ...new Map(
+            [...old.runs, ...page.items].map((run) => [run.id, run]),
+          ).values(),
+        ],
+        nextCursor: page.nextCursor,
+      }));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "较早运行暂不可读取。");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const [externalRun, setExternalRun] = useState<ScheduledRun | null>(null);
   const peekTaskId = useRef<string | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null),
@@ -119,7 +147,18 @@ export function SchedulesWorkspace({ initial, roles }: Props) {
   const refresh = useCallback(async () => {
     const result = await loadSchedules();
     if (result.ok) {
-      setData({ tasks: result.tasks, runs: result.runs });
+      setData((old) => ({
+        tasks: result.tasks,
+        runs: [
+          ...new Map(
+            [...result.runs, ...old.runs].map((run) => [run.id, run]),
+          ).values(),
+        ],
+        nextCursor:
+          old.runs.length > result.runs.length
+            ? old.nextCursor
+            : result.nextCursor,
+      }));
       setError("");
       setRevision((value) => value + 1);
     } else setError(result.error);
@@ -516,6 +555,15 @@ export function SchedulesWorkspace({ initial, roles }: Props) {
             最近 {runs.length} 条记录
           </p>
           <ScheduleRuns runs={runs} select={selectRun} />
+          {data.nextCursor && (
+            <Button
+              variant="outline"
+              disabled={loadingMore}
+              onClick={() => void loadMore()}
+            >
+              {loadingMore ? "正在读取…" : "读取较早运行"}
+            </Button>
+          )}
         </TabsContent>
       </Tabs>
       <Sheet

@@ -1,17 +1,17 @@
+import { projectInput } from "@hutian-world/contracts";
 import {
   Body,
   Controller,
   Delete,
   Inject,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Put,
-  ParseUUIDPipe,
 } from "@nestjs/common";
-import { projectInput } from "@hutian-world/contracts";
 import { ProjectsService } from "./projects.service.js";
-@Controller("v1")
+@Controller(["v1", "v2"])
 export class ProjectsController {
   constructor(
     @Inject(ProjectsService) private readonly service: ProjectsService,

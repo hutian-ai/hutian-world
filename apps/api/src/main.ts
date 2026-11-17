@@ -1,17 +1,21 @@
-import "reflect-metadata";
 import { Logger } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import {
   FastifyAdapter,
   type NestFastifyApplication,
 } from "@nestjs/platform-fastify";
+import { randomUUID } from "node:crypto";
+import "reflect-metadata";
 import { AppModule } from "./app.module.js";
 import type { Environment } from "./config/environment.js";
 let app: NestFastifyApplication | undefined;
 try {
   app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ bodyLimit: 12 * 1024 * 1024 }),
+    new FastifyAdapter({
+      bodyLimit: 12 * 1024 * 1024,
+      genReqId: () => randomUUID(),
+    }),
     { logger: ["error", "warn"], abortOnError: false },
   );
   app

@@ -21,4 +21,59 @@ export default tseslint.config(
 
     languageOptions: { globals: globals.browser },
   },
+  {
+    files: ["apps/web/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            "node:*",
+            "**/apps/api/**",
+            "**/infra/**",
+            "@harness-dock/*",
+            "@hutian-ai/memory-gateway-client",
+            "@hutian-ai/knowledge-gateway-client",
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["packages/contracts/src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: ["node:*", "@nestjs/*", "typeorm", "**/apps/**"] },
+      ],
+    },
+  },
+  {
+    files: ["apps/api/src/application/**/*.ts"],
+    ignores: ["apps/api/src/application/application.module.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: ["**/transport/**", "**/web/**"] },
+      ],
+    },
+  },
+  {
+    files: ["apps/api/src/modules/**/*.service.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        { patterns: ["**/application/**", "**/transport/**"] },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.type='MemberExpression'][callee.property.name='query']",
+          message:
+            "Use an ORM repository; atomic SQL belongs in a scoped repository or explicit migration.",
+        },
+      ],
+    },
+  },
 );

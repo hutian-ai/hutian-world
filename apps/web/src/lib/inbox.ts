@@ -1,11 +1,16 @@
 import type {
   ScheduledInbox,
-  ScheduledRunNotice,
   ScheduledNoticeChange,
+  ScheduledRunNotice,
 } from "@hutian-world/contracts";
 import { api } from "./api";
-export const loadInbox = (filter: "all" | "unread" | "attention" = "all") =>
-  api<ScheduledInbox>(`/v1/schedule-inbox?filter=${filter}`);
+export const loadInbox = (
+  filter: "all" | "unread" | "attention" = "all",
+  cursor?: string,
+) =>
+  api<ScheduledInbox>(
+    `/v1/schedule-inbox?filter=${filter}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`,
+  );
 export const loadInboxNotice = (id: string) =>
   api<ScheduledRunNotice | null>(`/v1/schedule-inbox/${id}`);
 export async function markInbox(

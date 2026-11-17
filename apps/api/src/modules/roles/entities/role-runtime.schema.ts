@@ -1,9 +1,9 @@
-import { EntitySchema } from "typeorm";
 import type { ExecutionPreferences } from "@hutian-world/contracts";
+import { EntitySchema } from "typeorm";
 import {
-  workspaceColumn,
   id,
   updatedAt,
+  workspaceColumn,
 } from "../../../infrastructure/database/columns.js";
 export interface RoleRuntimeRecord {
   workspaceId: string;

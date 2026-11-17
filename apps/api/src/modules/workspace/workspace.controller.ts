@@ -1,6 +1,6 @@
-import { Controller, Get, Put, Inject, GoneException } from "@nestjs/common";
+import { Controller, Get, GoneException, Inject, Put } from "@nestjs/common";
 import { WorkspaceService } from "./workspace.service.js";
-@Controller("v1")
+@Controller(["v1", "v2"])
 export class WorkspaceController {
   constructor(
     @Inject(WorkspaceService) private readonly service: WorkspaceService,

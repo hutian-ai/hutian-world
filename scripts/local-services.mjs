@@ -18,9 +18,9 @@ const services = [
   {
     name: "chat-host",
     cwd: resolve(workspace, "matrix-team-chat"),
-    args: ["--import", "tsx", "examples/web/server.ts"],
+    args: ["--import", "tsx", "host/web/server.ts"],
     url: "http://127.0.0.1:3310/api/health",
-    required: "examples/web/server.ts",
+    required: "host/web/server.ts",
   },
   {
     name: "api",
@@ -41,6 +41,13 @@ const services = [
   label: `org.hutian.world.${s.name}`,
   plist: resolve(agents, `org.hutian.world.${s.name}.plist`),
 }));
+const selectedName = process.argv.slice(3).find((value) => value !== "--");
+if (selectedName && !services.some((service) => service.name === selectedName))
+  throw new Error("服务名称需为 api、web 或 chat-host。");
+const selectedServices = selectedName
+  ? services.filter((service) => service.name === selectedName)
+  : services;
+
 const escape = (s) =>
   String(s)
     .replaceAll("&", "&amp;")
@@ -94,16 +101,16 @@ async function main() {
       "此常驻入口使用 macOS launchd；其他平台请使用 README 的独立启动方式。",
     );
   const action = process.argv[2] ?? "status";
-  if (!["start", "stop", "status"].includes(action))
+  if (!["start", "stop", "restart", "status"].includes(action))
     throw new Error(
-      "用法：node scripts/local-services.mjs start | stop | status",
+      "用法：node scripts/local-selectedServices.mjs start | stop | restart | status [api|web|chat-host]",
     );
   if (action === "status") {
     if ((await status()).some((s) => !s.healthy)) process.exitCode = 1;
     return;
   }
-  if (action === "stop") {
-    for (const s of [...services].reverse()) {
+  if (action === "stop" || action === "restart") {
+    for (const s of [...selectedServices].reverse()) {
       if ((await inspect(s)).loaded)
         await run("/bin/launchctl", ["bootout", `${domain}/${s.label}`]);
       // bootout can return while launchd still reports a SIGTERMed service. A
@@ -122,15 +129,17 @@ async function main() {
         if (e.code !== "ENOENT") throw e;
       });
     }
-    await status();
-    return;
+    if (action === "stop") {
+      await status();
+      return;
+    }
   }
-  for (const s of services)
+  for (const s of selectedServices)
     if (!(await stat(resolve(s.cwd, s.required))).isFile())
       throw new Error(`缺少 ${s.name} 的运行产物，请先完成安装和构建。`);
   await mkdir(agents, { recursive: true });
   await mkdir(logs, { recursive: true, mode: 0o700 });
-  for (const s of services)
+  for (const s of selectedServices)
     for (const suffix of ["log", "error.log"]) {
       const file = resolve(logs, `${s.name}.${suffix}`);
       await (await open(file, "a", 0o600)).close();
@@ -146,7 +155,7 @@ async function main() {
     "/usr/sbin",
     "/sbin",
   ].join(":");
-  for (const s of services) {
+  for (const s of selectedServices) {
     const loaded = await inspect(s);
     if (loaded.loaded) continue;
     if (await health(s))
@@ -166,7 +175,7 @@ async function main() {
     await run("/bin/launchctl", ["bootstrap", domain, s.plist]);
   }
   for (let attempt = 0; attempt < 30; attempt++) {
-    if ((await Promise.all(services.map(health))).every(Boolean)) {
+    if ((await Promise.all(selectedServices.map(health))).every(Boolean)) {
       await status();
       return;
     }

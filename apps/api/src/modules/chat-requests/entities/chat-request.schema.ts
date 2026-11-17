@@ -1,5 +1,5 @@
-import { EntitySchema } from "typeorm";
 import type { ChatRequestInput } from "@hutian-world/contracts";
+import { EntitySchema } from "typeorm";
 export interface ChatRequestRow {
   id: string;
   workspace_id: string;
@@ -12,6 +12,8 @@ export interface ChatRequestRow {
   reply_event_id: string | null;
   error: string | null;
   workflow_started: boolean;
+  observe_attempts: number;
+  next_observe_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -29,6 +31,8 @@ export const ChatRequestSchema = new EntitySchema<ChatRequestRow>({
     run_id: { type: "uuid", nullable: true },
     reply_event_id: { type: "text", nullable: true },
     error: { type: "text", nullable: true },
+    observe_attempts: { type: "integer", default: 0 },
+    next_observe_at: { type: "timestamptz", nullable: true },
     workflow_started: { type: "boolean", default: false },
     created_at: { type: "timestamptz", default: () => "now()" },
     updated_at: { type: "timestamptz", default: () => "now()" },

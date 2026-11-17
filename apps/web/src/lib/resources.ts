@@ -1,1 +1,1 @@
-export type { Reference, KnowledgeDocument } from "@hutian-world/contracts";
+export type { KnowledgeDocument, Reference } from "@hutian-world/contracts";

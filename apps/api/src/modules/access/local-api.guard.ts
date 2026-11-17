@@ -1,19 +1,19 @@
+import type { AccessContext } from "@hutian-world/contracts";
+import type { CanActivate, ExecutionContext } from "@nestjs/common";
+import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import type { FastifyRequest } from "fastify";
+import { timingSafeEqual } from "node:crypto";
+import type { Environment } from "../../config/environment.js";
+import { PUBLIC_HEALTH } from "../health/health.controller.js";
+import { AccessContexts } from "./access-context.service.js";
 import {
   BrowserSessions,
-  SESSION_BOOTSTRAP,
   SERVICE_ENDPOINT,
+  SESSION_BOOTSTRAP,
   TOOL_ENDPOINT,
   browserOrigins,
 } from "./browser-session.service.js";
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
-import type { CanActivate, ExecutionContext } from "@nestjs/common";
-import type { FastifyRequest } from "fastify";
-import type { AccessContext } from "@hutian-world/contracts";
-import { Reflector } from "@nestjs/core";
-import { PUBLIC_HEALTH } from "../health/health.controller.js";
-import { timingSafeEqual } from "node:crypto";
-import type { Environment } from "../../config/environment.js";
-import { AccessContexts } from "./access-context.service.js";
 @Injectable()
 export class LocalApiGuard implements CanActivate {
   constructor(

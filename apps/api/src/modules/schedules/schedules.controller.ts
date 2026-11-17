@@ -1,4 +1,10 @@
-import { SERVICE_ENDPOINT } from "../access/browser-session.service.js";
+import {
+  scheduleCalendarQuery,
+  scheduledNoticeChange,
+  scheduleInput,
+  scheduleRule,
+} from "@hutian-world/contracts";
+import { previewSchedule } from "@hutian-world/contracts/schedule-time";
 import {
   Body,
   Controller,
@@ -13,22 +19,20 @@ import {
   SetMetadata,
 } from "@nestjs/common";
 import { z } from "zod";
-import { previewSchedule } from "@hutian-world/contracts/schedule-time";
-import {
-  scheduleInput,
-  scheduleRule,
-  scheduleCalendarQuery,
-  scheduledNoticeChange,
-} from "@hutian-world/contracts";
+import { SERVICE_ENDPOINT } from "../access/browser-session.service.js";
 import { SchedulesService } from "./schedules.service.js";
-@Controller("v1")
+@Controller(["v1", "v2"])
 export class SchedulesController {
   constructor(
     @Inject(SchedulesService) private readonly schedules: SchedulesService,
   ) {}
-  @Get("schedule-inbox") inbox(@Query("filter") filter: unknown) {
+  @Get("schedule-inbox") inbox(
+    @Query("filter") filter: unknown,
+    @Query("cursor") cursor?: string,
+  ) {
     return this.schedules.inbox(
       z.enum(["all", "unread", "attention"]).default("all").parse(filter),
+      cursor,
     );
   }
   @Post("schedule-inbox/:id") markNotice(
@@ -118,6 +122,15 @@ export class SchedulesController {
     return this.schedules.runNow(
       id,
       z.object({ requestId: z.uuid() }).strict().parse(body).requestId,
+    );
+  }
+  @Get("scheduled-runs") runPage(
+    @Query("scheduleId") scheduleId?: string,
+    @Query("cursor") cursor?: string,
+  ) {
+    return this.schedules.runPage(
+      scheduleId ? z.uuid().parse(scheduleId) : undefined,
+      cursor,
     );
   }
   @Get("scheduled-runs/:id") getRun(

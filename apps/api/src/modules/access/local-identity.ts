@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { EntityManager } from "typeorm";
-import { CreatorSchema } from "./entities/creator.schema.js";
 import {
   AppUserSchema,
-  WorkspaceSchema,
-  WorkspaceMemberSchema,
   ModuleConnectionSchema,
+  WorkspaceMemberSchema,
+  WorkspaceSchema,
 } from "./entities/access.schema.js";
+import { CreatorSchema } from "./entities/creator.schema.js";
 /** Bootstrap preserves existing identities and never restores revoked membership. */
 export async function ensureLocalIdentity(
   manager: EntityManager,

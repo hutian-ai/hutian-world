@@ -22,7 +22,8 @@ export default defineConfig({
     proxy: {
       "/api": {
         target: "http://127.0.0.1:3341",
-        rewrite: (path) => (path.startsWith("/api/v1/") ? path.slice(4) : path),
+        rewrite: (path) =>
+          /^\/api\/v[12]\//.test(path) ? path.slice(4) : path,
       },
     },
   },

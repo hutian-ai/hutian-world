@@ -1,59 +1,32 @@
 "use client";
+import { api } from "@/lib/api";
+import {
+  askConversation,
+  controlConversation,
+  inviteConversation,
+  postConversation,
+} from "@/lib/communication-actions";
+import type {
+  ChatDirectory,
+  Conversation,
+  RoomKind,
+} from "@/lib/communications";
+import {
+  composerMessage,
+  memberMentionFormatter,
+} from "@/lib/conversation-mentions";
 import Link from "@/lib/navigation";
-import { useRouter } from "@/lib/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { Reference } from "@/lib/resources";
 import {
   AssistantRuntimeProvider,
-  MessagePrimitive,
-  ActionBarPrimitive,
-  useAuiState,
-  useAui,
   useExternalStoreRuntime,
   type AssistantRuntime,
   type ThreadMessageLike,
 } from "@assistant-ui/react";
-import {
-  ArrowLeft,
-  ArrowUpRight,
-  Hash,
-  MessageCircle,
-  Plus,
-  Search,
-  UsersRound,
-  RefreshCw,
-  Brain,
-  BookOpen,
-  Copy,
-  Paperclip,
-  X,
-  Square,
-  ChevronDown,
-} from "lucide-react";
-import { Switch } from "@hutian-ai/design/ui/switch";
-import { MemberExecutionSettings } from "./member-execution-settings";
-import { ChatMentionTrigger, ChatMentionChip, ChatMessageText } from "./chat-mentions";
-import {
-  memberMentionFormatter,
-  composerMessage,
-} from "@/lib/conversation-mentions";
-import {
-  Popover,
-  PopoverTrigger,
-  PopoverContent,
-} from "@hutian-ai/design/ui/popover";
-import { ChatSendButton } from "@hutian-ai/design/chat/send-button";
-import {
-  AssistantMessageBody,
-  ChatMessageRoot,
-  UserMessageBubble,
-  ChatPending,
-} from "@hutian-ai/design/chat/message";
 import { Thread } from "@hutian-ai/design/assistant-ui/thread.aui";
-import { MarkdownText } from "@hutian-ai/design/assistant-ui/markdown-text";
+import { ChatSendButton } from "@hutian-ai/design/chat/send-button";
+import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
 import { Button } from "@hutian-ai/design/ui/button";
-import { Input } from "@hutian-ai/design/ui/input";
-import { Textarea } from "@hutian-ai/design/ui/textarea";
-import { Avatar, AvatarFallback } from "@hutian-ai/design/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -62,6 +35,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@hutian-ai/design/ui/dialog";
+import { Input } from "@hutian-ai/design/ui/input";
 import {
   Select,
   SelectContent,
@@ -69,964 +43,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@hutian-ai/design/ui/select";
-import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
-import type {
-  ChatDirectory,
-  Conversation,
-  RoomKind,
-} from "@/lib/communications";
+import { Switch } from "@hutian-ai/design/ui/switch";
 import {
-  askConversation,
-  createCommunication,
-  inviteConversation,
-  postConversation,
-  refreshConversation,
-  controlConversation,
-  controlConversationQueue,
-  handoffConversation,
-} from "@/lib/communication-actions";
-import type { Reference } from "@/lib/resources";
-import { ChatExecution, projectActivity } from "./chat-execution";
-import type { ExecutionActivity } from "@hutian-world/contracts";
-import { saveChatResult } from "@/lib/chat-result-actions";
-
-const labels = { direct: "私聊", group: "群聊", channel: "频道" };
-const icons = { direct: MessageCircle, group: UsersRound, channel: Hash };
-function mergeConversation(
-  previous: Conversation | null,
-  incoming: Conversation,
-): Conversation {
-  if (!previous || previous.room.id !== incoming.room.id) return incoming;
-  return {
-    ...incoming,
-    agents: incoming.agents.map((agent) => {
-      const previousAgent = previous.agents.find((a) => a.id === agent.id);
-      const currentBinding = previousAgent?.runtimeBinding;
-      return currentBinding &&
-        agent.runtimeBinding &&
-        currentBinding.updatedAt > agent.runtimeBinding.updatedAt
-        ? { ...agent, runtimeBinding: currentBinding }
-        : agent;
-    }),
-    messages: [
-      ...new Map(
-        [...previous.messages, ...incoming.messages].map((m) => [m.id, m]),
-      ).values(),
-    ].sort((a, b) => a.timestamp - b.timestamp),
-    jobs: [
-      ...new Map(
-        [...previous.jobs, ...incoming.jobs].map((j) => [
-          `${j.eventId}:${j.agentId}`,
-          (() => {
-            const old = previous.jobs.find(
-              (x) => x.runId && x.runId === j.runId,
-            );
-            const seq = (a: ExecutionActivity | null | undefined) =>
-              a?.revision ?? -1;
-            return old?.activity && seq(old.activity) > seq(j.activity)
-              ? { ...j, activity: old.activity }
-              : j;
-          })(),
-        ]),
-      ).values(),
-    ],
-  };
-}
-function ComposerDraft({
-  roomId,
-  runtime,
-  onText,
-}: {
-  roomId: string;
-  runtime: AssistantRuntime;
-  onText(text: string): void;
-}) {
-  useEffect(() => {
-    const key = `hutian:draft:${roomId}`;
-    try {
-      runtime.thread.composer.setText(localStorage.getItem(key) ?? "");
-    } catch {}
-    onText(runtime.thread.composer.getState().text);
-    return runtime.thread.composer.subscribe(() => {
-      onText(runtime.thread.composer.getState().text);
-      try {
-        localStorage.setItem(key, runtime.thread.composer.getState().text);
-      } catch {}
-    });
-  }, [roomId, runtime, onText]);
-  return null;
-}
-function href(id: string) {
-  return `/chat?${new URLSearchParams({ room: id })}`;
-}
-function executionLinks(
-  text: string,
-  roomId: string,
-  job?: Conversation["jobs"][number],
-) {
-  return text.replace(
-    /\[([^\]]+)\]\(([^)]+)\)/g,
-    (link, label: string, target: string) => {
-      let path = target;
-      try {
-        path = decodeURIComponent(target);
-      } catch {}
-      const file = job?.activity?.outputs.find(
-        (o) => o.reference === path || o.name === path,
-      );
-      if (file && job?.runId)
-        return `[${label}](/api/chat-output?${new URLSearchParams({ roomId, eventId: job.eventId, agentId: job.agentId, runId: job.runId, reference: file.reference })})`;
-      // A native path is not a Web download URL. The original reply is retained in
-      // Matrix; expose a download only after the host has confirmed the exact file.
-      return /^(?:file:\/\/|\/(?:Users|home|tmp|private|Volumes|var)\/|[a-z]:[\\/])/i.test(
-        path,
-      )
-        ? label
-        : link;
-    },
-  );
-}
-function AssistantMessage() {
-  const aui = useAui();
-  const messageText = useAuiState((s) =>
-    s.message.content
-      .filter((p) => p.type === "text")
-      .map((p) => p.text)
-      .join("\n"),
-  );
-  const source = useAuiState(
-    (s) =>
-      s.message.metadata.custom.resultSource as
-        { roomId: string; eventId: string } | undefined,
-  );
-  const name = useAuiState(
-    (s) => s.message.metadata.custom.name as string | undefined,
-  );
-  const execution = useAuiState(
-    (s) =>
-      s.message.metadata.custom.execution as
-        | {
-            activity: ExecutionActivity;
-            origin: {
-              roomId: string;
-              eventId: string;
-              agentId: string;
-              runId: string;
-            };
-            showStop?: boolean;
-            references?: Array<{ id: string; title: string; url: string }>;
-            configuration?: {
-              label?: string | null;
-              model?: string | null;
-              effort?: string;
-            };
-          }
-        | undefined,
-  );
-  const pendingLabel = useAuiState(
-    (s) => s.message.metadata.custom.pendingLabel as string | undefined,
-  );
-  const waitingFor = useAuiState(
-    (s) => s.message.metadata.custom.waitingFor as string | undefined,
-  );
-  const body = useAuiState((s) =>
-    s.message.content.some((p) => p.type === "text" && p.text.trim()),
-  );
-  const handoff = useAuiState(
-    (s) =>
-      s.message.metadata.custom.handoff as
-        | {
-            roomId: string;
-            sourceEventId: string;
-            agents: Array<{ id: string; name: string; runtimeLabel?: string }>;
-          }
-        | undefined,
-  );
-  const [target, setTarget] = useState("");
-  const [goal, setGoal] = useState(
-    "请基于这份交付继续整理，保留已确认结果与来源。",
-  );
-  const [handing, setHanding] = useState(false);
-  const [handoffError, setHandoffError] = useState("");
-  const [handoffOpen, setHandoffOpen] = useState(false);
-  const handoffTransaction = useRef<{ key: string; id: string } | null>(null);
-  const [saveOpen, setSaveOpen] = useState(false);
-  const [saveKind, setSaveKind] = useState<"memory" | "knowledge">("memory");
-  const [saveScope, setSaveScope] = useState("workspace");
-  const [saveTitle, setSaveTitle] = useState("");
-  const [saveText, setSaveText] = useState("");
-  const [saveStatus, setSaveStatus] = useState("");
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const saveRequest = useRef<{ key: string; id: string } | null>(null);
-  const renderBody = (content: ReactNode) => (
-    <AssistantMessageBody name={name} status={pendingLabel}>
-      {content}
-      {body &&
-        (!execution ||
-          ["completed", "failed", "cancelled"].includes(
-            execution.activity.state,
-          )) && (
-          <ActionBarPrimitive.Root className="mt-2 flex gap-2">
-            <ActionBarPrimitive.Copy asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-1 text-xs text-muted-foreground"
-              >
-                <Copy className="size-3" />
-                复制
-              </Button>
-            </ActionBarPrimitive.Copy>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-1 text-xs text-muted-foreground"
-                >
-                  更多
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="flex w-72 flex-col items-stretch gap-1 p-2 [&>button]:justify-start"
-                align="start"
-              >
-                {execution && (
-                  <details className="p-2 text-xs">
-                    <summary className="cursor-pointer">运行详情</summary>
-                    <p className="py-2">
-                      本轮请求：
-                      {[
-                        execution.configuration?.label,
-                        execution.configuration?.model,
-                        execution.configuration?.effort,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                    {Boolean(execution.references?.length) && (
-                      <>
-                        <p>提供给此成员的资料</p>
-                        <ul>
-                          {execution.references?.map((r, i) => (
-                            <li key={`${r.id}:${i}`}>
-                              <Link href={r.url} className="underline">
-                                {r.title}
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </details>
-                )}
-                {source && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-1 text-xs text-muted-foreground"
-                      onClick={() =>
-                        aui.thread
-                          .composer()
-                          .setText(
-                            `> ${messageText.split("\n").join("\n> ")}\n\n`,
-                          )
-                      }
-                    >
-                      引用
-                    </Button>
-                    <Dialog
-                      open={saveOpen}
-                      onOpenChange={(open) => {
-                        setSaveOpen(open);
-                        if (open) {
-                          setSaveText(messageText);
-                          setSaveTitle(
-                            messageText
-                              .split("\n")
-                              .find((line) => line.trim())
-                              ?.replace(/^#+\s*/, "")
-                              .slice(0, 60) ?? "工作结果",
-                          );
-                          setSaveStatus("");
-                          setSaved(false);
-                        }
-                      }}
-                    >
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-1 text-xs text-muted-foreground"
-                        >
-                          保存结果
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="sm:max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>保存这份工作结果</DialogTitle>
-                          <DialogDescription>
-                            可修改内容；保存时附上原消息与版本。会话共享内容可被本会话成员使用。
-                          </DialogDescription>
-                        </DialogHeader>
-                        <Select
-                          value={saveKind}
-                          onValueChange={(v) =>
-                            setSaveKind(v as "memory" | "knowledge")
-                          }
-                        >
-                          <SelectTrigger aria-label="保存类型">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="memory">整理为记忆</SelectItem>
-                            <SelectItem value="knowledge">
-                              加入知识资料
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Select value={saveScope} onValueChange={setSaveScope}>
-                          <SelectTrigger aria-label="保存范围">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="workspace">
-                              个人工作台
-                            </SelectItem>
-                            <SelectItem value="conversation">
-                              当前会话共享
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          aria-label="结果标题"
-                          maxLength={80}
-                          value={saveTitle}
-                          onChange={(e) => setSaveTitle(e.target.value)}
-                        />
-                        <Textarea
-                          aria-label="保存内容"
-                          className="min-h-48"
-                          value={saveText}
-                          onChange={(e) => setSaveText(e.target.value)}
-                          maxLength={18000}
-                        />
-                        {saveStatus && (
-                          <p
-                            role="status"
-                            className="text-sm text-muted-foreground"
-                          >
-                            {saveStatus}
-                          </p>
-                        )}
-                        {saved && (
-                          <Link
-                            className="text-sm underline underline-offset-4"
-                            href={`/${saveKind}${saveScope === "conversation" ? `?${new URLSearchParams({ room: source.roomId })}` : ""}`}
-                          >
-                            查看保存范围
-                          </Link>
-                        )}
-                        <Button
-                          disabled={
-                            saving || !saveText.trim() || !saveTitle.trim()
-                          }
-                          onClick={async () => {
-                            const key = JSON.stringify([
-                              source,
-                              saveTitle,
-                              saveText,
-                              saveKind,
-                              saveScope,
-                            ]);
-                            if (saveRequest.current?.key !== key)
-                              saveRequest.current = {
-                                key,
-                                id: crypto.randomUUID(),
-                              };
-                            setSaving(true);
-                            try {
-                              const result = await saveChatResult({
-                                ...source,
-                                id: saveRequest.current.id,
-                                kind: saveKind,
-                                title: saveTitle,
-                                content: saveText,
-                                scope:
-                                  saveScope === "workspace"
-                                    ? { kind: "workspace" }
-                                    : {
-                                        kind: "conversation",
-                                        id: source.roomId,
-                                      },
-                              });
-                              setSaved(result.ok);
-                              setSaveStatus(
-                                result.ok
-                                  ? result.status === "completed" ||
-                                    result.status === "ready"
-                                    ? "已保存。可前往对应记忆或资料范围查看。"
-                                    : "原保存操作已提交，整理结果可在对应记忆或资料页核对。"
-                                  : result.error,
-                              );
-                            } finally {
-                              setSaving(false);
-                            }
-                          }}
-                        >
-                          {saving ? "保存中" : "保存"}
-                        </Button>
-                      </DialogContent>
-                    </Dialog>
-                  </>
-                )}
-                {handoff && handoff.agents.length > 0 && (
-                  <Dialog open={handoffOpen} onOpenChange={setHandoffOpen}>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-1 text-xs text-muted-foreground"
-                      >
-                        请另一位继续
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>交给另一位成员继续</DialogTitle>
-                        <DialogDescription>
-                          引用这条回复，使用当前会话共享范围。
-                          {target
-                            ? `接手成员运行环境：${handoff.agents.find((a) => a.id === target)?.runtimeLabel ?? "未配置，请先进入成员执行配置"}。`
-                            : "使用接手成员的默认运行环境、模型与推理等级。"}
-                        </DialogDescription>
-                      </DialogHeader>
-                      <Select value={target} onValueChange={setTarget}>
-                        <SelectTrigger aria-label="接手成员">
-                          <SelectValue placeholder="选择已加入的成员" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {handoff.agents.map((a) => (
-                            <SelectItem key={a.id} value={a.id}>
-                              {a.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {!handoff.agents.length && (
-                        <p className="text-sm text-muted-foreground">
-                          请先通过会话成员入口邀请接手成员。
-                        </p>
-                      )}
-                      <Textarea
-                        aria-label="交接要求"
-                        value={goal}
-                        onChange={(e) => setGoal(e.target.value)}
-                      />
-                      {handoffError && (
-                        <Alert variant="destructive">
-                          <AlertDescription>{handoffError}</AlertDescription>
-                        </Alert>
-                      )}
-                      <Button
-                        disabled={
-                          handing ||
-                          !target ||
-                          !goal.trim() ||
-                          !handoff.agents.find((a) => a.id === target)
-                            ?.runtimeLabel
-                        }
-                        onClick={async () => {
-                          const key = JSON.stringify([
-                            handoff.sourceEventId,
-                            target,
-                            goal,
-                          ]);
-                          if (handoffTransaction.current?.key !== key)
-                            handoffTransaction.current = {
-                              key,
-                              id: crypto.randomUUID(),
-                            };
-                          setHanding(true);
-                          setHandoffError("");
-                          try {
-                            const result = await handoffConversation({
-                              roomId: handoff.roomId,
-                              sourceEventId: handoff.sourceEventId,
-                              agentId: target,
-                              text: goal,
-                              transactionId: handoffTransaction.current.id,
-                            });
-                            if (result.ok) setHandoffOpen(false);
-                            else setHandoffError(result.error);
-                          } finally {
-                            setHanding(false);
-                          }
-                        }}
-                      >
-                        {handing ? "正在交接" : "发送交接"}
-                      </Button>
-                    </DialogContent>
-                  </Dialog>
-                )}
-              </PopoverContent>
-            </Popover>
-          </ActionBarPrimitive.Root>
-        )}
-    </AssistantMessageBody>
-  );
-  return (
-    <ChatMessageRoot role="assistant">
-      {execution ? (
-        <ChatExecution
-          {...execution}
-          hasAnswer={body}
-          waitingFor={waitingFor}
-          renderBody={renderBody}
-        >
-          {body && (
-            <div data-slot="turn-answer">
-              <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
-            </div>
-          )}
-        </ChatExecution>
-      ) : pendingLabel && !body ? (
-        <ChatPending label={pendingLabel} waitingFor={waitingFor} />
-      ) : (
-        renderBody(
-          body && (
-            <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
-          ),
-        )
-      )}
-    </ChatMessageRoot>
-  );
-}
-function UserMessage() {
-  const [queueBusy, setQueueBusy] = useState("");
-  const [queueError, setQueueError] = useState("");
-  const [replyBusy, setReplyBusy] = useState("");
-  const retryTargets = useAuiState(
-    (s) =>
-      s.message.metadata.custom.retryTargets as
-        Array<{ id: string; name: string }> | undefined,
-  );
-  const requestReply = useAuiState(
-    (s) =>
-      s.message.metadata.custom.requestReply as
-        ((agentId: string, resume?: boolean) => Promise<void>) | undefined,
-  );
-  const dispatchPending = useAuiState((s) =>
-    Boolean(s.message.metadata.custom.dispatchPending),
-  );
-  async function changeQueue(
-    item: { id: string; roomId: string },
-    action: "start" | "cancel",
-  ) {
-    setQueueBusy(item.id);
-    setQueueError("");
-    try {
-      const result = await controlConversationQueue({
-        roomId: item.roomId,
-        id: item.id,
-        action,
-      });
-      if (!result.ok) setQueueError(result.error);
-    } catch {
-      setQueueError("排队操作未确认，请核对原消息后重试。");
-    } finally {
-      setQueueBusy("");
-    }
-  }
-  const jobs = useAuiState(
-    (s) =>
-      s.message.metadata.custom.jobs as
-        Array<Conversation["jobs"][number] & { name: string }> | undefined,
-  );
-  const queue = useAuiState(
-    (s) =>
-      s.message.metadata.custom.queue as
-        | Array<
-            Conversation["queue"][number] & { roomId: string; name?: string }
-          >
-        | undefined,
-  );
-  const attachments = useAuiState(
-    (s) =>
-      s.message.metadata.custom.attachments as
-        | Array<{ id: string; name: string; roomId: string; eventId: string }>
-        | undefined,
-  );
-  const names: Record<string, string> = {
-    running: "正在处理",
-    replied: "已回复",
-    completed: "执行完成，回复待核对",
-    unknown: "结果待核对",
-    failed: "未完成",
-    cancelled: "已取消",
-    idle: "尚未执行",
-    accepted: "已接收，准备执行",
-    preparing: "准备执行",
-    queued: "等待执行入口",
-    blocked: "执行暂受阻",
-  };
-  return (
-    <ChatMessageRoot role="user">
-      <UserMessageBubble>
-        <MessagePrimitive.Parts components={{ Text: ChatMessageText }} />
-      </UserMessageBubble>
-      {attachments?.map((file) => (
-        <a
-          key={file.id}
-          className="text-xs underline underline-offset-4"
-          href={`/api/chat-input?${new URLSearchParams({ id: file.id, roomId: file.roomId, eventId: file.eventId })}`}
-        >
-          {file.name}
-        </a>
-      ))}
-      {queue?.map((item) => (
-        <div
-          key={item.id}
-          className="flex items-center gap-2 text-xs text-muted-foreground"
-        >
-          <span>
-            {item.name} · {item.state === "paused" ? "等待已暂停" : "等待执行"}
-          </span>
-          {item.state === "paused" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-6 text-xs"
-              disabled={Boolean(queueBusy)}
-              onClick={() => void changeQueue(item, "start")}
-            >
-              {queueBusy === item.id ? "提交中" : "开始处理"}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 text-xs"
-            disabled={Boolean(queueBusy)}
-            onClick={() => void changeQueue(item, "cancel")}
-          >
-            移除
-          </Button>
-        </div>
-      ))}
-      {queueError && (
-        <p role="alert" className="text-xs text-destructive">
-          {queueError}
-        </p>
-      )}
-      {!dispatchPending &&
-        retryTargets?.map((a) => (
-          <Button
-            key={a.id}
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            disabled={Boolean(replyBusy) || dispatchPending}
-            onClick={async () => {
-              setReplyBusy(a.id);
-              try {
-                await requestReply?.(a.id);
-              } finally {
-                setReplyBusy("");
-              }
-            }}
-          >
-            {replyBusy === a.id ? "正在核对" : `重试 ${a.name} 的请求`}
-          </Button>
-        ))}
-      {jobs
-        ?.filter(
-          (j) =>
-            j.runId &&
-            ["unknown", "completed", "failed", "blocked"].includes(j.state),
-        )
-        .map((j) => (
-          <Button
-            key={`observe:${j.agentId}`}
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs"
-            disabled={Boolean(replyBusy)}
-            onClick={async () => {
-              setReplyBusy(j.agentId);
-              try {
-                await requestReply?.(j.agentId, true);
-              } finally {
-                setReplyBusy("");
-              }
-            }}
-          >
-            核对 {j.name} 的原运行
-          </Button>
-        ))}
-      {jobs
-        ?.filter((job) => !job.activity && !queue?.length && Boolean(job.error))
-        .map((job) => (
-          <details
-            key={job.agentId}
-            className="max-w-[90%] text-[11px] text-muted-foreground"
-          >
-            <summary className="cursor-pointer">
-              {job.name} · {names[job.state] ?? "状态待核对"}
-            </summary>
-            <div className="mt-1 rounded-md border px-3 py-2">
-              {job.error && <p>{job.error}</p>}
-              {job.instructionsLabel && (
-                <p>本次成员：{job.instructionsLabel}</p>
-              )}
-              {job.instructionsVersion && (
-                <p title={job.instructionsVersion}>
-                  人设版本：
-                  {job.instructionsVersion.split("#").at(-1)?.slice(0, 12)}
-                </p>
-              )}
-              {job.instructionsSource?.match(
-                /^hutian:\/\/roles\/[\da-f-]{36}$/,
-              ) && (
-                <Link
-                  className="underline underline-offset-4"
-                  href={`/members/${job.instructionsSource.split("/").at(-1)}?view=capabilities&section=definition`}
-                >
-                  查看当前成员配置
-                </Link>
-              )}
-              {(job.runtimeLabel || job.nodeId) && (
-                <p>
-                  本次选择：
-                  {job.runtimeLabel || `${job.nodeId} · ${job.provider ?? ""}`}
-                </p>
-              )}
-              <p>原运行：{job.runId ?? "尚未取得回执"}</p>
-              <p>记录保留；未知结果不会自动派发替代运行。</p>
-            </div>
-          </details>
-        ))}
-    </ChatMessageRoot>
-  );
-}
-function conversationPeers(directory: ChatDirectory) {
-  return [
-    ...directory.roles.map((r) => ({
-      id: `role:${r.id}`,
-      name: r.name,
-      description: r.description,
-      roleId: r.id,
-    })),
-    ...directory.agents
-      .filter((a) => !a.roleId && !/^role-[\da-f]{32}$/.test(a.id))
-      .map((a) => ({ ...a, roleId: undefined })),
-  ];
-}
-function NewConversation({ directory }: { directory: ChatDirectory }) {
-  const agents = conversationPeers(directory);
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<RoomKind>("direct");
-  const [name, setName] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const retry = useRef<{ key: string; id: string } | null>(null);
-  async function create() {
-    const title =
-      name.trim() ||
-      (kind === "direct" ? agents.find((a) => a.id === selected[0])?.name : "");
-    if (!title) {
-      setError("请输入会话名称。");
-      return;
-    }
-    const key = JSON.stringify({ kind, name: title, agentIds: selected });
-    const transaction =
-      retry.current?.key === key
-        ? retry.current
-        : { key, id: crypto.randomUUID() };
-    retry.current = transaction;
-    setBusy(true);
-    setError("");
-    try {
-      const result = await createCommunication({
-        kind,
-        name: title,
-        agentIds: selected.filter((id) => !id.startsWith("role:")),
-        roleIds: selected
-          .filter((id) => id.startsWith("role:"))
-          .map((id) => id.slice(5)),
-        transactionId: transaction.id,
-      });
-      if (!result.ok) {
-        setError(result.error);
-        return;
-      }
-      retry.current = null;
-      setOpen(false);
-      setName("");
-      setSelected([]);
-      router.push(href(result.roomId));
-      router.refresh();
-    } catch {
-      setError("创建结果未确认，再次创建会核对原请求。");
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!busy) setOpen(v);
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button size="icon-sm" variant="ghost" aria-label="新建会话">
-          <Plus />
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>开始一段对话</DialogTitle>
-          <DialogDescription>
-            选择私聊、群聊或长期主题频道。加入会话不会自动启动助手。
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-3 gap-2">
-          {(Object.keys(labels) as RoomKind[]).map((k) => (
-            <Button
-              key={k}
-              variant={k === kind ? "secondary" : "outline"}
-              onClick={() => {
-                setKind(k);
-                if (k === "direct") setSelected(selected.slice(0, 1));
-              }}
-            >
-              {labels[k]}
-            </Button>
-          ))}
-        </div>
-        <label className="grid gap-2 text-xs">
-          {kind === "direct" ? "会话名称（可选）" : "名称"}
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={
-              kind === "channel"
-                ? "例如：产品讨论"
-                : kind === "group"
-                  ? "例如：方案协作"
-                  : "默认使用助手名称"
-            }
-            maxLength={80}
-          />
-        </label>
-        <div className="grid gap-1">
-          <p className="mb-1 text-xs text-muted-foreground">
-            {kind === "direct" ? "选择一位成员" : "邀请成员（可稍后添加）"}
-          </p>
-          {agents.map((a) => (
-            <Button
-              key={a.id}
-              variant={selected.includes(a.id) ? "secondary" : "ghost"}
-              className="h-auto justify-start py-2.5"
-              onClick={() =>
-                setSelected(
-                  kind === "direct"
-                    ? [a.id]
-                    : selected.includes(a.id)
-                      ? selected.filter((id) => id !== a.id)
-                      : [...selected, a.id],
-                )
-              }
-            >
-              <span className="flex size-7 items-center justify-center rounded-md border bg-primary/10 text-primary">
-                {a.name.slice(0, 1)}
-              </span>
-              <span className="grid min-w-0 flex-1 text-left">
-                <span className="truncate">{a.name}</span>
-                <span className="line-clamp-2 text-xs font-normal text-muted-foreground">
-                  {a.description}
-                </span>
-              </span>
-              <span className="ml-auto">
-                {selected.includes(a.id) ? "✓" : ""}
-              </span>
-            </Button>
-          ))}
-        </div>
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        <Button
-          onClick={() => void create()}
-          disabled={busy || (kind === "direct" && selected.length !== 1)}
-        >
-          {busy ? "正在建立…" : "开始对话"}
-        </Button>
-      </DialogContent>
-    </Dialog>
-  );
-}
-function Welcome({ directory }: { directory: ChatDirectory }) {
-  const agents = conversationPeers(directory);
-  return (
-    <div className="flex min-h-0 flex-1 items-center justify-center p-8">
-      <div className="w-full max-w-lg">
-        <span className="mb-6 flex size-10 items-center justify-center rounded-xl border bg-primary/5 text-primary">
-          <MessageCircle className="size-5" />
-        </span>
-        <p className="mb-2 text-xs text-muted-foreground">
-          与你的助手一起，把事情往前推进
-        </p>
-        <h2 className="text-2xl font-medium tracking-tight">
-          今天想一起做点什么？
-        </h2>
-        <p className="mt-3 text-sm leading-7 text-muted-foreground">
-          从左侧继续一段对话，或创建私聊、群聊和频道。发出消息时，可以明确选择由哪位助手接着处理。
-        </p>
-        <div className="mt-7 border-t pt-5">
-          <p className="mb-3 text-xs text-muted-foreground">
-            可以一起工作的成员 · {agents.length}
-          </p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {agents.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center gap-3 rounded-md border p-3"
-              >
-                <Avatar className="size-8 rounded-md">
-                  <AvatarFallback className="rounded-md bg-primary/10 text-primary">
-                    {a.name.slice(0, 1)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="text-sm">{a.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {a.description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="mt-5 flex gap-4 text-xs text-muted-foreground">
-          <Link className="hover:text-foreground" href="/runtimes">
-            查看运行环境 ↗
-          </Link>
-          <Link className="hover:text-foreground" href="/members">
-            管理成员 ↗
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
+  ArrowLeft,
+  ArrowUpRight,
+  Hash,
+  MessageCircle,
+  Paperclip,
+  Plus,
+  RefreshCw,
+  Search,
+  Square,
+  UsersRound,
+  X,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { projectActivity } from "./chat-execution";
+import { ChatMentionChip, ChatMentionTrigger } from "./chat-mentions";
+import { AssistantMessage } from "./conversations/assistant-message";
+import { ComposerDraft } from "./conversations/composer-draft";
+import {
+  NewConversation,
+  Welcome,
+} from "./conversations/conversation-directory";
+import { mergeConversation } from "./conversations/conversation-state";
+import { executionLinks } from "./conversations/message-projection";
+import { href, icons, labels } from "./conversations/navigation";
+import { useConversationState } from "./conversations/use-conversation-state";
+import { UserMessage } from "./conversations/user-message";
+import { MemberExecutionSettings } from "./member-execution-settings";
 export function Communications({
   directory,
   initial,
@@ -1040,15 +85,18 @@ export function Communications({
   preferredAgentId?: string;
   embedded?: boolean;
 }) {
-  const router = useRouter();
-  const [state, setState] = useState(initial);
-  const [historyCursor, setHistoryCursor] = useState(
-    initial?.nextCursor ?? null,
-  );
-  const [historyError, setHistoryError] = useState("");
+  const {
+    state,
+    setState,
+    historyCursor,
+    setHistoryCursor,
+    historyError,
+    setHistoryError,
+    connectionError,
+    refresh,
+  } = useConversationState(initial, selectedId);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
-  const [connectionError, setConnectionError] = useState("");
   const [sending, setSending] = useState(false);
   const [followMode, setFollowMode] = useState("queue");
   const [composerText, setComposerText] = useState("");
@@ -1086,7 +134,6 @@ export function Communications({
   );
   const [useMemory, setUseMemory] = useState(true);
   const [useKnowledge, setUseKnowledge] = useState(true);
-  const [references, setReferences] = useState<Reference[]>([]);
   const [preferencesLoaded, setPreferencesLoaded] = useState(false);
   useEffect(() => {
     setUseMemory(true);
@@ -1099,7 +146,9 @@ export function Communications({
         setUseMemory(saved.useMemory === true);
         setUseKnowledge(saved.useKnowledge === true);
       }
-    } catch {}
+    } catch {
+      /* Local preferences are optional when storage is unavailable. */
+    }
     setPreferencesLoaded(true);
   }, [selectedId]);
   useEffect(() => {
@@ -1109,7 +158,9 @@ export function Communications({
           `hutian:conversation:${selectedId}`,
           JSON.stringify({ contextVersion: 1, useMemory, useKnowledge }),
         );
-      } catch {}
+      } catch {
+        /* Local preferences are optional when storage is unavailable. */
+      }
   }, [preferencesLoaded, selectedId, useMemory, useKnowledge]);
   const [preparing, setPreparing] = useState(false);
   const invocation = (id: string) => ({
@@ -1164,84 +215,6 @@ export function Communications({
     }
   }
   const active = state?.active?.roomId === selectedId;
-  async function refresh() {
-    if (!selectedId) return;
-    const r = await refreshConversation(selectedId);
-    if (r.ok) {
-      setState((previous) => mergeConversation(previous, r.conversation));
-      setConnectionError("");
-      return true;
-    } else {
-      setConnectionError(r.error);
-      return false;
-    }
-  }
-  useEffect(() => {
-    if (!selectedId) return;
-    let events: EventSource | undefined;
-    const offline = () => {
-      events?.close();
-      setConnectionError("网络已离线，消息与原运行保留；联网后自动核对。");
-    };
-    const connect = () => {
-      events?.close();
-      if (!navigator.onLine) {
-        offline();
-        return;
-      }
-      events = new EventSource(
-        `/api/chat-events?${new URLSearchParams({ room: selectedId })}`,
-      );
-      events.onmessage = (event) => {
-        try {
-          const snapshot = JSON.parse(event.data) as Conversation;
-          setState((previous) => mergeConversation(previous, snapshot));
-          setConnectionError("");
-        } catch {
-          setConnectionError("会话状态暂未确认，请刷新核对。");
-        }
-      };
-      events.addEventListener("activity", (event) => {
-        try {
-          const update = JSON.parse((event as MessageEvent).data);
-          if (!update.activity) return;
-          setState((previous) =>
-            previous
-              ? {
-                  ...previous,
-                  jobs: previous.jobs.map((job) =>
-                    job.runId === update.runId &&
-                    (update.activity.revision ?? 0) >=
-                      (job.activity?.revision ?? 0)
-                      ? { ...job, activity: update.activity }
-                      : job,
-                  ),
-                }
-              : previous,
-          );
-        } catch {
-          /* The next authoritative snapshot reconciles a malformed event. */
-        }
-      });
-      events.addEventListener("unavailable", () =>
-        setConnectionError("连接中断，正在核对原运行；不会重新派发。"),
-      );
-      events.onerror = () =>
-        setConnectionError("连接中断，正在重新连接原会话。");
-    };
-    const online = () => {
-      setConnectionError("网络已恢复，正在核对原会话。");
-      connect();
-    };
-    window.addEventListener("offline", offline);
-    window.addEventListener("online", online);
-    connect();
-    return () => {
-      events?.close();
-      window.removeEventListener("offline", offline);
-      window.removeEventListener("online", online);
-    };
-  }, [selectedId]);
   const messages = useMemo<ThreadMessageLike[]>(
     () =>
       state?.messages
@@ -1257,7 +230,7 @@ export function Communications({
               custom: {
                 name: m.name,
                 requestEventId: job?.eventId,
-                agentId: job?.agentId,
+                agentId: job?.agentId ?? m.agentId ?? undefined,
                 dispatchPending: sending,
                 mentions: state.agents
                   .filter((agent) => m.mentionedUserIds.includes(agent.userId))
@@ -1454,11 +427,9 @@ export function Communications({
       const roomId = selectedId;
       setHistoryError("");
       try {
-        const response = await fetch(
-          `/api/chat-history?${new URLSearchParams({ room: roomId, cursor: historyCursor })}`,
+        const page = await api<Conversation>(
+          `/v2/transport/chat-history?${new URLSearchParams({ room: roomId, cursor: historyCursor })}`,
         );
-        if (!response.ok) throw new Error();
-        const page = (await response.json()) as Conversation;
         if (currentRoom.current !== roomId) return;
         setState((previous) =>
           previous ? mergeConversation(page, previous) : page,
@@ -1587,7 +558,6 @@ export function Communications({
             );
           else sources.push(...asked.references);
         }
-        setReferences(sources);
         if (errors.length)
           setError(
             `消息已保存。${errors.join("；")} 请在该消息下重试对应成员。`,
@@ -2009,13 +979,11 @@ export function Communications({
                                   const form = new FormData();
                                   form.append("roomId", selectedId);
                                   form.append("file", file);
-                                  const response = await fetch(
-                                    "/api/chat-upload",
-                                    { method: "POST", body: form },
-                                  );
-                                  const value = await response.json();
-                                  if (!response.ok)
-                                    throw new Error(value.error);
+                                  const value = await api<{
+                                    id: string;
+                                    name: string;
+                                    size: number;
+                                  }>("/v2/transport/chat-upload", "POST", form);
                                   if (currentRoom.current === selectedId)
                                     setUploads((previous) => [
                                       ...previous,

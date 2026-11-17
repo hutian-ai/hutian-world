@@ -1,21 +1,21 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
-import { DataSource } from "typeorm";
 import {
   accessContext,
   type AccessContext,
   type RunAuthority,
 } from "@hutian-world/contracts";
+import { ForbiddenException, Inject, Injectable } from "@nestjs/common";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { DataSource } from "typeorm";
 import type { Environment } from "../../config/environment.js";
 
-import { ensureLocalIdentity } from "./local-identity.js";
-import { CreatorSchema } from "./entities/creator.schema.js";
 import {
   AppUserSchema,
-  WorkspaceSchema,
-  WorkspaceMemberSchema,
   ModuleConnectionSchema,
+  WorkspaceMemberSchema,
+  WorkspaceSchema,
 } from "./entities/access.schema.js";
+import { CreatorSchema } from "./entities/creator.schema.js";
+import { ensureLocalIdentity } from "./local-identity.js";
 
 @Injectable()
 export class AccessContexts {

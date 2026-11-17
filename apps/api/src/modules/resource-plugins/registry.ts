@@ -1,15 +1,15 @@
 import {
-  MemoryGatewayClient,
-  MemoryGatewayAdminClient,
-  clientConfig as memoryConfig,
-  provisionerConfig as memoryProvisioner,
-} from "@hutian-ai/memory-gateway-client";
-import {
-  KnowledgeGatewayClient,
   KnowledgeGatewayAdminClient,
+  KnowledgeGatewayClient,
   clientConfig as knowledgeConfig,
   provisionerConfig as knowledgeProvisioner,
 } from "@hutian-ai/knowledge-gateway-client";
+import {
+  MemoryGatewayAdminClient,
+  MemoryGatewayClient,
+  clientConfig as memoryConfig,
+  provisionerConfig as memoryProvisioner,
+} from "@hutian-ai/memory-gateway-client";
 
 /** Host extension contract. Domain request/response schemas are owned by each independent module. */
 export interface ResourcePlugin<Client, Config> {

@@ -1,5 +1,5 @@
-import { z } from "zod";
 import { Temporal } from "temporal-polyfill";
+import { z } from "zod";
 import type { RecordAuthority, RunAuthority } from "./access.js";
 import type { RoleRuntimeBinding } from "./index.js";
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -123,6 +123,7 @@ export interface ScheduledRunNotice {
   run: ScheduledRun;
 }
 export interface ScheduledInbox {
+  nextCursor?: string | null;
   notices: ScheduledRunNotice[];
   unread: number;
   attention: number;

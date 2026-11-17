@@ -1,11 +1,11 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import { DataSource, In, type EntityManager } from "typeorm";
-import { randomUUID } from "node:crypto";
-import { AccessContexts } from "../access/access-context.service.js";
 import type { ProjectInput } from "@hutian-world/contracts";
-import { ProjectSchema } from "./entities/project.schema.js";
-import { MembershipSchema } from "./entities/membership.schema.js";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { DataSource, In, type EntityManager } from "typeorm";
+import { AccessContexts } from "../access/access-context.service.js";
 import { RoleSchema } from "../roles/entities/role.schema.js";
+import { MembershipSchema } from "./entities/membership.schema.js";
+import { ProjectSchema } from "./entities/project.schema.js";
 @Injectable()
 export class ProjectsService {
   constructor(

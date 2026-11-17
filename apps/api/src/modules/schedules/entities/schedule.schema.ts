@@ -1,5 +1,5 @@
 import { EntitySchema } from "typeorm";
-import type { TaskRow, RunRow } from "../schedules.mapper.js";
+import type { RunRow, TaskRow } from "../schedules.mapper.js";
 const uuid = { type: "uuid" as const };
 const timestamp = { type: "timestamptz" as const };
 const authority = {
@@ -46,6 +46,8 @@ export const ScheduledRunSchema = new EntitySchema<RunRow>({
     run_id: { ...uuid, nullable: true },
     reply_event_id: { type: "text", nullable: true },
     error: { type: "text", nullable: true },
+    observe_attempts: { type: "integer", default: 0 },
+    next_observe_at: { type: "timestamptz", nullable: true },
     lease_until: { ...timestamp, nullable: true },
     ...dates,
   },

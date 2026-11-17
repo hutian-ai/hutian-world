@@ -1,8 +1,8 @@
 import { EntitySchema } from "typeorm";
 import {
-  workspaceColumn,
-  id,
   createdAt,
+  id,
+  workspaceColumn,
 } from "../../../infrastructure/database/columns.js";
 export interface RoleChatRecord {
   workspaceId: string;

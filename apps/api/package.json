@@ -25,10 +25,13 @@
     "zod": "4.4.3",
     "@harness-dock/client": "https://github.com/hutian-ai/harness-dock/releases/download/sdk-v0.1.2/harness-dock-sdk-0.1.2.tgz",
     "@hutian-ai/memory-gateway-client": "link:../../../memory-access/sdk",
-    "@hutian-ai/knowledge-gateway-client": "link:../../../knowledge-gateway/sdk"
+    "@hutian-ai/knowledge-gateway-client": "link:../../../knowledge-gateway/sdk",
+    "write-file-atomic": "7.0.1",
+    "@hutian-ai/matrix-agents-chat": "link:../../../matrix-team-chat"
   },
   "devDependencies": {
     "@types/pg": "8.20.0",
-    "tsx": "4.23.1"
+    "tsx": "4.23.1",
+    "@types/write-file-atomic": "4.0.3"
   }
 }

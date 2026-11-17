@@ -1,4 +1,15 @@
-import { RuntimeDevicesService } from "../runtime-devices/runtime-devices.service.js";
+import {
+  runtimeDisplayLabel,
+  scheduleCalendarQuery,
+  scheduleInput,
+  type ScheduleCalendarItem,
+  type ScheduleInput,
+  type ScheduledInbox,
+  type ScheduledNoticeChange,
+  type ScheduledRun,
+  type ScheduledRunNotice,
+} from "@hutian-world/contracts";
+import { nextScheduleStart } from "@hutian-world/contracts/schedule-time";
 import {
   BadRequestException,
   ConflictException,
@@ -6,48 +17,34 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DataSource, In, IsNull, Raw, type EntityManager } from "typeorm";
-import { isDeepStrictEqual } from "node:util";
 import { randomUUID } from "node:crypto";
-import { nextScheduleStart } from "@hutian-world/contracts/schedule-time";
-import {
-  type ScheduleInput,
-  type ScheduledInbox,
-  type ScheduledRunNotice,
-  type ScheduledNoticeChange,
-  type ScheduledRun,
-  type ScheduleCalendarItem,
-  scheduleCalendarQuery,
-  scheduleInput,
-  runtimeDisplayLabel,
-} from "@hutian-world/contracts";
+import { isDeepStrictEqual } from "node:util";
+import { DataSource, In, IsNull, Raw, type EntityManager } from "typeorm";
 import type { z } from "zod";
+import { scheduleActiveStates as active } from "../../common/execution-policy.js";
+import { readDatabaseCursor, writeCursor } from "../../common/pagination.js";
 import { AccessContexts } from "../access/access-context.service.js";
+import { RuntimeDevicesService } from "../runtime-devices/runtime-devices.service.js";
+import { ScheduleNoticesRepository } from "./schedule-notices.repository.js";
 
-import {
-  authority,
-  taskView,
-  runView,
-  type TaskRow,
-  type RunRow,
-} from "./schedules.mapper.js";
-import {
-  ScheduledTaskSchema,
-  ScheduledRunSchema,
-} from "./entities/schedule.schema.js";
 import { RoleRuntimeSchema } from "../roles/entities/role-runtime.schema.js";
 import { RoleSchema } from "../roles/entities/role.schema.js";
-const active = [
-  "queued",
-  "preparing",
-  "running",
-  "waiting_permission",
-  "blocked",
-  "unknown",
-];
+import {
+  ScheduledRunSchema,
+  ScheduledTaskSchema,
+} from "./entities/schedule.schema.js";
+import {
+  authority,
+  runView,
+  taskView,
+  type RunRow,
+  type TaskRow,
+} from "./schedules.mapper.js";
 @Injectable()
 export class SchedulesService {
   constructor(
+    @Inject(ScheduleNoticesRepository)
+    private readonly notices: ScheduleNoticesRepository,
     @Inject(RuntimeDevicesService)
     private readonly deviceNames: RuntimeDevicesService,
     @Inject(DataSource) private readonly db: DataSource,
@@ -94,29 +91,56 @@ export class SchedulesService {
     const tasks = await this.db.getRepository(ScheduledTaskSchema).find({
       where: { ...this.owner, deleted_at: IsNull() },
       order: { created_at: "ASC", id: "ASC" },
-      take: 100,
     });
-    const runs = await this.ownedRuns()
-      .orderBy("run.created_at", "DESC")
-      .take(100)
-      .getMany();
+    const page = await this.runPage();
     return {
       tasks: tasks.map(taskView),
-      runs: runs.map(runView),
+      runs: page.items,
+      nextCursor: page.nextCursor,
       worker: "api",
-      limit: 100,
+      limit: 50,
     };
   }
   async getTask(id: string) {
     const row = await this.ownedTask(id);
     if (!row) throw new NotFoundException("定时任务不存在或不可访问");
-    const runs = await this.db.getRepository(ScheduledRunSchema).find({
-      where: { schedule_id: id, workspace_id: row.workspace_id },
-      order: { created_at: "DESC" },
-      take: 100,
-    });
-    return { task: taskView(row), runs: runs.map(runView) };
+    const page = await this.runPage(id);
+    return {
+      task: taskView(row),
+      runs: page.items,
+      nextCursor: page.nextCursor,
+    };
   }
+  async runPage(scheduleId?: string, cursor?: string) {
+    const after = readDatabaseCursor(cursor),
+      query = this.ownedRuns();
+    if (scheduleId) {
+      if (!(await this.ownedTask(scheduleId)))
+        throw new NotFoundException("定时任务不存在或不可访问");
+      query.andWhere("run.schedule_id=:scheduleId", { scheduleId });
+    }
+    if (after)
+      query.andWhere(
+        "(date_trunc('milliseconds',run.created_at),run.id) < (:at::timestamptz,:id::uuid)",
+        after,
+      );
+    const rows = await query
+      .orderBy("date_trunc('milliseconds',run.created_at)", "DESC")
+      .addOrderBy("run.id", "DESC")
+      .limit(51)
+      .getMany();
+    const items = rows.slice(0, 50),
+      last = items.at(-1);
+    return {
+      items: items.map(runView),
+      nextCursor:
+        rows.length > 50 && last
+          ? writeCursor(last.created_at.toISOString(), last.id)
+          : null,
+      hasMore: rows.length > 50,
+    };
+  }
+
   async remove(id: string, expected: number) {
     return this.db.transaction(async (manager) => {
       const row = await this.ownedTask(id, manager, true);
@@ -424,55 +448,17 @@ export class SchedulesService {
     return runView(run);
   }
   async syncNotices() {
-    const c = this.contexts.current();
-    await this.db.query(
-      `INSERT INTO scheduled_run_notices
-      (id,workspace_id,user_id,kind,state_key,updated_at)
-      SELECT r.id,r.workspace_id,r.requested_by_user_id,
-        CASE WHEN r.state='replied' THEN 'result'
-          WHEN r.state IN ('failed','missed') THEN 'failed' ELSE 'attention' END,
-        r.state,r.updated_at
-      FROM scheduled_runs r JOIN scheduled_tasks t ON t.id=r.schedule_id
-      WHERE t.workspace_id=$1 AND t.created_by_user_id=$2 AND t.creator_id=$3
-        AND r.state IN ('replied','failed','missed','waiting_permission','blocked','unknown')
-      ON CONFLICT(id) DO UPDATE SET kind=EXCLUDED.kind,state_key=EXCLUDED.state_key,
-        updated_at=EXCLUDED.updated_at,read_at=NULL,resolved_at=NULL
-      WHERE scheduled_run_notices.state_key<>EXCLUDED.state_key`,
-      [c.workspaceId, c.userId, c.creatorId],
-    );
-    await this.db.query(
-      `UPDATE scheduled_run_notices n SET resolved_at=COALESCE(n.resolved_at,now()),state_key=r.state
-      FROM scheduled_runs r WHERE n.id=r.id AND n.workspace_id=$1 AND n.user_id=$2
-        AND r.state NOT IN ('replied','failed','missed','waiting_permission','blocked','unknown')
-        AND n.state_key<>r.state`,
-      [c.workspaceId, c.userId],
-    );
+    return this.notices.syncNotices();
   }
   async inbox(
     filter: "all" | "unread" | "attention" = "all",
+    cursor?: string,
   ): Promise<ScheduledInbox> {
-    const c = this.contexts.current();
-    const counts = await this.db.query(
-      `SELECT
-      count(*) FILTER (WHERE read_at IS NULL)::int AS unread,
-      count(*) FILTER (WHERE kind<>'result' AND resolved_at IS NULL)::int AS attention
-      FROM scheduled_run_notices WHERE workspace_id=$1 AND user_id=$2`,
-      [c.workspaceId, c.userId],
-    );
-    const notices: Array<{
-      id: string;
-      kind: ScheduledRunNotice["kind"];
-      read_at: Date | null;
-      resolved_at: Date | null;
-      updated_at: Date;
-    }> = await this.db.query(
-      `SELECT * FROM scheduled_run_notices
-      WHERE workspace_id=$1 AND user_id=$2
-        AND ($3='all' OR ($3='unread' AND read_at IS NULL)
-          OR ($3='attention' AND kind<>'result' AND resolved_at IS NULL))
-      ORDER BY updated_at DESC,id DESC LIMIT 100`,
-      [c.workspaceId, c.userId, filter],
-    );
+    const [counts, page] = await Promise.all([
+      this.notices.counts(),
+      this.notices.list(filter, cursor),
+    ]);
+    const notices = page.records;
     const runs = notices.length
       ? await this.ownedRuns()
           .andWhere("run.id IN (:...ids)", { ids: notices.map((n) => n.id) })
@@ -480,7 +466,8 @@ export class SchedulesService {
       : [];
     const mapped = new Map(runs.map((run) => [run.id, runView(run)]));
     return {
-      ...counts[0],
+      ...counts,
+      nextCursor: page.nextCursor,
       notices: notices.flatMap((n) => {
         const run = mapped.get(n.id);
         return run
@@ -500,12 +487,7 @@ export class SchedulesService {
   }
   async notice(id: string): Promise<ScheduledRunNotice | null> {
     const run = await this.getRun(id);
-    const c = this.contexts.current();
-    const [notice] = await this.db.query(
-      `SELECT kind,read_at,resolved_at,updated_at FROM scheduled_run_notices
-       WHERE id=$1 AND workspace_id=$2 AND user_id=$3`,
-      [id, c.workspaceId, c.userId],
-    );
+    const notice = await this.notices.get(id);
     return notice
       ? {
           id,
@@ -527,36 +509,7 @@ export class SchedulesService {
       throw new ConflictException(
         "此事项需要按原运行状态处理，不能通过已处理替代授权或执行。",
       );
-    const c = this.contexts.current();
-    const field = action === "done" ? "resolved_at" : "read_at";
-    const [changed] = await this.db.query(
-      `WITH previous AS (
-        SELECT * FROM scheduled_run_notices
-        WHERE id=$1 AND workspace_id=$2 AND user_id=$3
-          AND date_trunc('milliseconds',updated_at)=$4::timestamptz
-        FOR UPDATE
-      ), changed AS (
-        UPDATE scheduled_run_notices n
-        SET ${field}=${action === "unread" ? "NULL" : "date_trunc('milliseconds',clock_timestamp())"}
-        FROM previous p WHERE n.id=p.id
-          ${action === "done" ? "AND EXISTS (SELECT 1 FROM scheduled_runs r WHERE r.id=n.id AND r.state IN ('failed','missed'))" : ""}
-        RETURNING p.${field} AS before, n.${field} AS after, n.xmin::text AS revision
-      ) SELECT * FROM changed`,
-      [id, c.workspaceId, c.userId, updatedAt],
-    );
-    if (!changed)
-      throw new ConflictException("通知状态已变化，请刷新后再操作。");
-    return {
-      ok: true,
-      change: {
-        id,
-        revision: changed.revision,
-        updatedAt,
-        field: action === "done" ? "resolvedAt" : "readAt",
-        before: changed.before?.toISOString() ?? null,
-        after: changed.after?.toISOString() ?? null,
-      } satisfies ScheduledNoticeChange,
-    };
+    return this.notices.markNotice(id, action, updatedAt);
   }
   async undoNotice(change: ScheduledNoticeChange) {
     const run = await this.getRun(change.id);
@@ -565,31 +518,7 @@ export class SchedulesService {
       !["failed", "missed"].includes(run.state)
     )
       throw new ConflictException("运行状态已变化，不能撤销原处理标记。");
-    const c = this.contexts.current();
-    const field = change.field === "readAt" ? "read_at" : "resolved_at";
-    const changed = await this.db.query(
-      `UPDATE scheduled_run_notices n SET ${field}=$5::timestamptz
-       WHERE id=$1 AND workspace_id=$2 AND user_id=$3
-         AND date_trunc('milliseconds',updated_at)=$4::timestamptz
-         AND date_trunc('milliseconds',${field}) IS NOT DISTINCT FROM $6::timestamptz
-         AND xmin::text=$7
-         ${change.field === "resolvedAt" ? "AND EXISTS (SELECT 1 FROM scheduled_runs r WHERE r.id=n.id AND r.state IN ('failed','missed'))" : ""}
-       RETURNING id`,
-      [
-        change.id,
-        c.workspaceId,
-        c.userId,
-        change.updatedAt,
-        change.before,
-        change.after,
-        change.revision,
-      ],
-    );
-    if (!changed[1])
-      throw new ConflictException(
-        "通知已有后续变化，未覆盖当前状态。请刷新核对。",
-      );
-    return { ok: true };
+    return this.notices.undoNotice(change);
   }
   async recordRoom(id: string, roomId: string) {
     const run = await this.getRun(id);

@@ -1,20 +1,26 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { api } from "@/lib/api";
 import { useRouter } from "@/lib/navigation";
-import type { ScheduledRun, ScheduledTask } from "@hutian-world/contracts";
 import { loadSchedule, previewScheduleRule } from "@/lib/schedule-actions";
 import {
   scheduleAt,
-  scheduleHref,
   scheduledWorkHref,
+  scheduleHref,
   scheduleStatusLabels,
 } from "@/lib/schedule-display";
-import { ScheduleActions } from "./schedule-actions";
-import { ScheduleSummary } from "./schedule-summary";
-import { ScheduleRuns } from "./schedule-runs";
-import { Badge } from "@hutian-ai/design/ui/badge";
-import { PageNavigation } from "./page-navigation";
 import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
+import { Badge } from "@hutian-ai/design/ui/badge";
+import { Button } from "@hutian-ai/design/ui/button";
+import type {
+  Page,
+  ScheduledRun,
+  ScheduledTask,
+} from "@hutian-world/contracts";
+import { useCallback, useEffect, useState } from "react";
+import { PageNavigation } from "./page-navigation";
+import { ScheduleActions } from "./schedule-actions";
+import { ScheduleRuns } from "./schedule-runs";
+import { ScheduleSummary } from "./schedule-summary";
 
 export function ScheduleDetail({
   initial,
@@ -22,7 +28,11 @@ export function ScheduleDetail({
   roles,
   returnTo,
 }: {
-  initial: { task: ScheduledTask; runs: ScheduledRun[] };
+  initial: {
+    task: ScheduledTask;
+    runs: ScheduledRun[];
+    nextCursor?: string | null;
+  };
   roleName: string;
   roles: { id: string; name: string }[];
   returnTo: string;
@@ -36,7 +46,18 @@ export function ScheduleDetail({
   const refresh = useCallback(async () => {
     const result = await loadSchedule(initial.task.id);
     if (result.ok) {
-      setData({ task: result.task, runs: result.runs });
+      setData((old) => ({
+        task: result.task,
+        runs: [
+          ...new Map(
+            [...result.runs, ...old.runs].map((run) => [run.id, run]),
+          ).values(),
+        ],
+        nextCursor:
+          old.runs.length > result.runs.length
+            ? old.nextCursor
+            : result.nextCursor,
+      }));
       setError("");
       return result.task;
     }
@@ -60,6 +81,29 @@ export function ScheduleDetail({
       current = false;
     };
   }, [ruleKey]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  async function loadMore() {
+    if (!data.nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const page = await api<Page<ScheduledRun>>(
+        `/v2/scheduled-runs?${new URLSearchParams({ scheduleId: data.task.id, cursor: data.nextCursor })}`,
+      );
+      setData((old) => ({
+        ...old,
+        runs: [
+          ...new Map(
+            [...old.runs, ...page.items].map((run) => [run.id, run]),
+          ).values(),
+        ],
+        nextCursor: page.nextCursor,
+      }));
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "较早运行暂不可读取。");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const { task, runs } = data;
   return (
     <div className="space-y-6">
@@ -86,6 +130,7 @@ export function ScheduleDetail({
           }}
         />
       </header>
+
       {error && (
         <Alert variant="destructive">
           <AlertDescription>
@@ -113,6 +158,15 @@ export function ScheduleDetail({
                 )
               }
             />
+            {data.nextCursor && (
+              <Button
+                variant="outline"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? "正在读取…" : "读取较早运行"}
+              </Button>
+            )}
           </section>
         </div>
         {task.status !== "deleted" && (

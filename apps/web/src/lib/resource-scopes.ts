@@ -1,12 +1,8 @@
 import { z } from "zod";
 import { command } from "./api";
 export type * from "@hutian-world/contracts";
-export const resolveResourceScope = command(
-  "resource-scopes.resolveResourceScope",
-);
-export const resourceScopeOptions = command(
-  "resource-scopes.resourceScopeOptions",
-);
+export const resolveResourceScope = command("resources.resolveResourceScope");
+export const resourceScopeOptions = command("resources.resourceScopeOptions");
 export const resourceScope = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("workspace") }).strict(),
   z.object({ kind: z.literal("role"), id: z.uuid() }).strict(),

@@ -1,7 +1,7 @@
 import { EntitySchema } from "typeorm";
 import {
-  workspaceColumn,
   id,
+  workspaceColumn,
 } from "../../../infrastructure/database/columns.js";
 export interface MembershipRecord {
   workspaceId: string;

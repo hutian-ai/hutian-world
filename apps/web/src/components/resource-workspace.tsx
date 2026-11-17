@@ -1,20 +1,18 @@
 "use client";
+import { OrganizationMarkdown } from "@/components/organization-markdown";
 import Link, { useRouter, useSearchParams } from "@/lib/navigation";
-import { useEffect, useRef, useState } from "react";
 import {
-  BookOpen,
-  Brain,
-  FileText,
-  Plus,
-  Search,
-  RefreshCw,
-  ArrowUpRight,
-  Upload,
-  ArrowLeft,
-} from "lucide-react";
+  findResources,
+  loadResources,
+  observeMemory,
+  readKnowledgeSource,
+  readMemorySource,
+  saveResource,
+} from "@/lib/resource-actions";
+import type { ResourceScope } from "@/lib/resource-scopes";
+import type { Reference } from "@/lib/resources";
+import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
 import { Button } from "@hutian-ai/design/ui/button";
-import { Input } from "@hutian-ai/design/ui/input";
-import { Textarea } from "@hutian-ai/design/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -23,22 +21,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@hutian-ai/design/ui/dialog";
-import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
-import { OrganizationMarkdown } from "@/components/organization-markdown";
+import { Input } from "@hutian-ai/design/ui/input";
+import { Textarea } from "@hutian-ai/design/ui/textarea";
 import {
-  findResources,
-  loadResources,
-  observeMemory,
-  readMemorySource,
-  readKnowledgeSource,
-  saveResource,
-} from "@/lib/resource-actions";
-import type { ResourceScope } from "@/lib/resource-scopes";
-import type { Reference } from "@/lib/resources";
+  ArrowLeft,
+  ArrowUpRight,
+  BookOpen,
+  Brain,
+  FileText,
+  Plus,
+  RefreshCw,
+  Search,
+  Upload,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 type Document = {
   id: string;
   title: string;
+  sourceTitle?: string;
   content?: string;
   createdAt?: string;
   status?: string;
@@ -80,6 +81,8 @@ export function ResourceWorkspace({
   const title = isMemory ? "记忆" : "知识库";
   const Icon = isMemory ? Brain : BookOpen;
   const [documents, setDocuments] = useState<Document[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selected, setSelected] = useState<Document>();
   const [content, setContent] = useState("");
   const [sourceVersion, setSourceVersion] = useState("");
@@ -100,11 +103,14 @@ export function ResourceWorkspace({
   const [pending, setPending] = useState("");
   const [notice, setNotice] = useState("");
   const retry = useRef<{ key: string; id: string } | null>(null);
+  const sourceHeading = content
+    .trimStart()
+    .match(/^#{1,2}[ \t]+(.+?)(?:[ \t]+#+)?(?:\r?\n|$)/)?.[1]
+    .trim();
   const hasSourceHeading =
-    content
-      .trimStart()
-      .match(/^#{1,2}[ \t]+(.+?)(?:[ \t]+#+)?(?:\r?\n|$)/)?.[1]
-      .trim() === selected?.title.trim();
+    sourceHeading &&
+    (sourceHeading === selected?.title.trim() ||
+      sourceHeading === selected?.sourceTitle);
   useEffect(() => {
     reader.current?.scrollTo({ top: 0 });
   }, [selected?.id, results]);
@@ -145,6 +151,7 @@ export function ResourceWorkspace({
     if (r.ok) {
       const docs = r.data.documents as Document[];
       setDocuments(docs);
+      setNextCursor(r.data.nextCursor);
       setError("");
       if (initialSource) {
         const d = docs.find((d) => d.id === initialSource);
@@ -154,10 +161,21 @@ export function ResourceWorkspace({
           if (version !== loadVersion.current) return;
           if (original.ok) await choose(original.data);
           else setError(original.error);
-        } else
-          setError(
-            "这份原文暂不可读取，可能仍在处理中、已删除或当前范围不可访问。",
-          );
+        } else {
+          const original = await readMemorySource(initialSource, scope);
+          if (version !== loadVersion.current) return;
+          if (original.ok) {
+            const sourceText = String(original.data.original_text ?? "");
+            await choose({
+              id: initialSource,
+              title:
+                sourceText.trimStart().match(/^#{1,2}\s+([^\n]+)/)?.[1] ??
+                "记忆来源",
+              createdAt: "",
+              status: "saved",
+            });
+          } else setError(original.error);
+        }
       }
     } else setError(r.error);
     if (version !== loadVersion.current) return;
@@ -189,6 +207,28 @@ export function ResourceWorkspace({
     }, 3000);
     return () => clearInterval(timer);
   }, [pending]);
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    const version = loadVersion.current;
+    setLoadingMore(true);
+    try {
+      const result = await loadResources(kind, scope, nextCursor);
+      if (version !== loadVersion.current) return;
+      if (result.ok) {
+        setDocuments((old) => [
+          ...new Map(
+            [...old, ...(result.data.documents as Document[])].map((doc) => [
+              doc.id,
+              doc,
+            ]),
+          ).values(),
+        ]);
+        setNextCursor(result.data.nextCursor);
+      } else setError(result.error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   async function save() {
     const key = JSON.stringify({ name, text, scope });
     const req =
@@ -413,7 +453,7 @@ export function ResourceWorkspace({
                 <span className="grid min-w-0 flex-1 gap-0.5">
                   <span
                     title={doc.title}
-                    className="truncate text-xs font-normal"
+                    className="line-clamp-2 text-xs leading-5 font-normal whitespace-normal break-words"
                   >
                     {doc.title}
                   </span>
@@ -452,6 +492,16 @@ export function ResourceWorkspace({
               <ArrowLeft className="size-4" />
               返回目录
             </Button>
+            {nextCursor && (
+              <Button
+                variant="ghost"
+                className="w-full"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? "正在读取…" : "读取更多原文"}
+              </Button>
+            )}
           </div>
           <div
             ref={reader}
@@ -497,7 +547,9 @@ export function ResourceWorkspace({
                 </>
               ) : !selected && initialSource ? (
                 <p role="status" className="text-sm text-muted-foreground">
-                  {sourceLoading ? "正在读取原文…" : "所选原文暂不可读取，请返回目录或重试。"}
+                  {sourceLoading
+                    ? "正在读取原文…"
+                    : "所选原文暂不可读取，请返回目录或重试。"}
                 </p>
               ) : selected ? (
                 <>
@@ -524,7 +576,31 @@ export function ResourceWorkspace({
                       正在读取原文…
                     </p>
                   ) : (
-                    <OrganizationMarkdown content={content} />
+                    <OrganizationMarkdown
+                      content={content}
+                      components={
+                        selected.sourceTitle
+                          ? {
+                              h1: ({ node, children }) => (
+                                <h1>
+                                  {node?.position?.start.offset ===
+                                  content.indexOf("#")
+                                    ? selected.title
+                                    : children}
+                                </h1>
+                              ),
+                              h2: ({ node, children }) => (
+                                <h2>
+                                  {node?.position?.start.offset ===
+                                  content.indexOf("#")
+                                    ? selected.title
+                                    : children}
+                                </h2>
+                              ),
+                            }
+                          : undefined
+                      }
+                    />
                   )}
                 </>
               ) : (

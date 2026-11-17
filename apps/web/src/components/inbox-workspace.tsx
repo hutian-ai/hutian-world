@@ -1,53 +1,53 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { readConversation, type Conversation } from "@/lib/communications";
+import { loadInbox, loadInboxNotice, markInbox, undoInbox } from "@/lib/inbox";
 import Link, { useSearchParams } from "@/lib/navigation";
+import { loadScheduledRun, runSchedule } from "@/lib/schedule-actions";
 import {
-  ArrowLeft,
-  CalendarClock,
-  RefreshCw,
-  Check,
-  MoreHorizontal,
-  Mail,
-  MailOpen,
-} from "lucide-react";
+  scheduleAt,
+  scheduleFromWorkHref,
+  scheduleStateLabels,
+  scheduledWorkHref,
+  scheduledWorkReturnLabel,
+  scheduledWorkReturnTo,
+} from "@/lib/schedule-display";
+import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
+import { Button } from "@hutian-ai/design/ui/button";
 import type {
   Role,
   ScheduledInbox,
+  ScheduledNoticeChange,
   ScheduledRun,
   ScheduledRunNotice,
-  ScheduledNoticeChange,
 } from "@hutian-world/contracts";
-import { loadInbox, loadInboxNotice, markInbox, undoInbox } from "@/lib/inbox";
-import { loadScheduledRun, runSchedule } from "@/lib/schedule-actions";
-import { readConversation, type Conversation } from "@/lib/communications";
 import {
-  scheduleAt,
-  scheduleStateLabels,
-  scheduledWorkHref,
-  scheduledWorkReturnTo,
-  scheduleFromWorkHref,
-  scheduledWorkReturnLabel,
-} from "@/lib/schedule-display";
-import { ScheduleRunStatus, scheduleRunTone } from "./schedule-run-status";
+  ArrowLeft,
+  CalendarClock,
+  Check,
+  Mail,
+  MailOpen,
+  MoreHorizontal,
+  RefreshCw,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Communications } from "./communications";
-import { Button } from "@hutian-ai/design/ui/button";
-import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
+import { ScheduleRunStatus, scheduleRunTone } from "./schedule-run-status";
 
 import { Checkbox } from "@hutian-ai/design/ui/checkbox";
-import { SelectionBar } from "@hutian-ai/design/ui/selection-bar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@hutian-ai/design/ui/dropdown-menu";
 import { Item, ItemActions } from "@hutian-ai/design/ui/item";
+import { SelectionBar } from "@hutian-ai/design/ui/selection-bar";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@hutian-ai/design/ui/tooltip";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-} from "@hutian-ai/design/ui/dropdown-menu";
 import { toast } from "sonner";
 
 type MarkAction = "read" | "unread" | "done";
@@ -169,11 +169,21 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
   const refreshVersion = useRef(0);
   const detailVersion = useRef(0);
   const retryRequest = useRef<{ scheduleId: string; id: string } | null>(null);
+  const pages = useRef(1);
+  const [loadingMore, setLoadingMore] = useState(false);
+  useEffect(() => {
+    pages.current = 1;
+  }, [filter]);
   const refresh = useCallback(async () => {
     const version = ++refreshVersion.current;
     setRefreshing(true);
     try {
       const incoming = await loadInbox(filter);
+      for (let page = 1; page < pages.current && incoming.nextCursor; page++) {
+        const next = await loadInbox(filter, incoming.nextCursor);
+        incoming.notices.push(...next.notices);
+        incoming.nextCursor = next.nextCursor;
+      }
       if (version !== refreshVersion.current) return;
       setData(incoming);
       setChecked(
@@ -194,6 +204,37 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
       if (version === refreshVersion.current) setRefreshing(false);
     }
   }, [filter]);
+  async function loadMore() {
+    if (!data?.nextCursor || loadingMore) return;
+    const version = refreshVersion.current;
+    setLoadingMore(true);
+    try {
+      const next = await loadInbox(filter, data.nextCursor);
+      if (version !== refreshVersion.current) return;
+      pages.current++;
+      setData((old) =>
+        old
+          ? {
+              ...next,
+              notices: [
+                ...new Map(
+                  [...old.notices, ...next.notices].map((item) => [
+                    item.id,
+                    item,
+                  ]),
+                ).values(),
+              ],
+            }
+          : next,
+      );
+    } catch (error) {
+      setListError(
+        error instanceof Error ? error.message : "较早通知暂不可读取。",
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }
   const refreshDetail = useCallback(async () => {
     if (!selectedId) return;
     const version = ++detailVersion.current;
@@ -731,6 +772,16 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
                   </ItemActions>
                 </Item>
               ))
+            )}
+            {data?.nextCursor && (
+              <Button
+                variant="ghost"
+                className="w-full"
+                disabled={loadingMore || refreshing}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? "正在读取…" : "读取较早通知"}
+              </Button>
             )}
           </div>
         </aside>

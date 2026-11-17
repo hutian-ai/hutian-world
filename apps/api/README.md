@@ -74,3 +74,7 @@ pnpm services:status
 `db:migrate` 仅在需要显式升级数据库时执行。常驻服务从 `dist/main.js` 启动；修改源码后先构建，再通过现有 launchd 服务入口重载 API，避免在相同端口另起 dev/start。
 
 本次属于第 7 段的内部结构整理，保持未提交。验收记录见仓库的 `docs/stage-7.md`；私有调用快照和临时核对脚本保存在忽略的 `.local/api-structure-*` 中。
+
+## 当前架构
+
+应用用例、HTTP/错误协议、后台生命周期、数据访问与恢复规范见 [技术架构](../../docs/architecture.md)。`application/application.module.ts` 是组合根，浏览器/协议入口在 `transport/browser/`，领域持久状态在 `modules/`。新客户端使用 `/v2`；`/v1` 保留同用例兼容。

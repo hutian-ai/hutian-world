@@ -1,9 +1,9 @@
 import { EntitySchema } from "typeorm";
 import {
-  workspaceColumns,
-  id,
   createdAt,
+  id,
   updatedAt,
+  workspaceColumns,
 } from "../../../infrastructure/database/columns.js";
 export interface ProjectRecord {
   id: string;

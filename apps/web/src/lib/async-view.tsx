@@ -1,10 +1,10 @@
+import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
 import {
   useEffect,
   useState,
   type DependencyList,
   type ReactNode,
 } from "react";
-import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
 export function useAsyncView(
   load: () => Promise<ReactNode>,
   dependencies: DependencyList,

@@ -23,7 +23,7 @@ createServer(async (req, res) => {
       {
         hostname: "127.0.0.1",
         port: 3341,
-        path: req.url.startsWith("/api/v1/") ? req.url.slice(4) : req.url,
+        path: /^\/api\/v[12]\//.test(req.url) ? req.url.slice(4) : req.url,
         method: req.method,
         headers: req.headers,
       },

@@ -1,5 +1,5 @@
 import { EntitySchema } from "typeorm";
-import { id, createdAt } from "../../../infrastructure/database/columns.js";
+import { createdAt, id } from "../../../infrastructure/database/columns.js";
 export interface CreatorRecord {
   id: string;
   displayName: string;

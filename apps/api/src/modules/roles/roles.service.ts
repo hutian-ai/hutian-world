@@ -1,4 +1,9 @@
-import { RuntimeDevicesService } from "../runtime-devices/runtime-devices.service.js";
+import type {
+  CreateRoleInput,
+  RoleChatIdentity,
+  RoleInput,
+  RoleRuntimeBindingInput,
+} from "@hutian-world/contracts";
 import { runtimeDisplayLabel } from "@hutian-world/contracts";
 import {
   ConflictException,
@@ -6,19 +11,14 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { DataSource, In } from "typeorm";
 import { randomUUID } from "node:crypto";
+import { DataSource, In } from "typeorm";
 import { AccessContexts } from "../access/access-context.service.js";
-import type {
-  RoleInput,
-  CreateRoleInput,
-  RoleChatIdentity,
-  RoleRuntimeBindingInput,
-} from "@hutian-world/contracts";
-import { RoleSchema } from "./entities/role.schema.js";
+import { ProjectsService } from "../projects/projects.service.js";
+import { RuntimeDevicesService } from "../runtime-devices/runtime-devices.service.js";
 import { RoleChatSchema } from "./entities/role-chat.schema.js";
 import { RoleRuntimeSchema } from "./entities/role-runtime.schema.js";
-import { ProjectsService } from "../projects/projects.service.js";
+import { RoleSchema } from "./entities/role.schema.js";
 @Injectable()
 export class RolesService {
   constructor(

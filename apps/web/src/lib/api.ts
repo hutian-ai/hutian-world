@@ -1,5 +1,16 @@
 import type { WorkbenchCommands, Workspace } from "@hutian-world/contracts";
-export class ApiError extends Error {}
+import { operationMetadata } from "@hutian-world/contracts";
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly code = 50000,
+    readonly status = 0,
+    readonly requestId = "",
+    readonly recovery = "observe",
+  ) {
+    super(message);
+  }
+}
 let establishing: Promise<void> | undefined;
 async function establish() {
   establishing ??= fetch("/api/session", {
@@ -20,18 +31,27 @@ export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
+  options: { signal?: AbortSignal } = {},
 ): Promise<T> {
-  if (!path.startsWith("/v1/")) throw new ApiError("应用接口地址无效。");
+  if (!/^\/v[12]\//.test(path)) throw new ApiError("应用接口地址无效。");
   await establish();
   const request = () =>
-    fetch("/api" + path, {
+    fetch("/api" + path.replace(/^\/v1\//, "/v2/"), {
       method,
+      signal: AbortSignal.any([
+        AbortSignal.timeout(60000),
+        ...(options.signal ? [options.signal] : []),
+      ]),
       credentials: "same-origin",
       cache: "no-store",
       headers: {
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        ...(body === undefined || body instanceof FormData
+          ? {}
+          : { "content-type": "application/json" }),
       },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(body === undefined
+        ? {}
+        : { body: body instanceof FormData ? body : JSON.stringify(body) }),
     });
   let response = await request();
   if (response.status === 401) {
@@ -39,16 +59,19 @@ export async function api<T>(
     await establish();
     response = await request();
   }
-  if (!response.ok) {
-    const failure = await response.json().catch(() => null);
+  const result = await response.json().catch(() => null);
+  if (!response.ok || !result || result.code !== 0) {
     throw new ApiError(
-      typeof failure?.message === "string"
-        ? failure.message
-        : "原操作尚未确认，请刷新核对。",
+      typeof result?.msg === "string"
+        ? result.msg
+        : "操作结果尚未确认，请核对原记录。",
+      result?.code ?? 50200,
+      response.status,
+      result?.requestId ?? response.headers.get("x-request-id") ?? "",
+      result?.recovery ?? "observe",
     );
   }
-  const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  return result.data as T;
 }
 async function encode(value: unknown): Promise<unknown> {
   if (value instanceof FormData) {
@@ -91,18 +114,26 @@ export function command<K extends keyof WorkbenchCommands>(
       )
       .then((result) => {
         const state = result as { success?: boolean; ok?: boolean } | null;
-        const changesPage =
-          name.startsWith("actions.") ||
-          name.startsWith("role-runtime-actions.") ||
-          [
-            "schedule-actions.saveSchedule",
-            "schedule-actions.deleteSchedule",
-            "schedule-actions.toggleSchedule",
-            "schedule-actions.runSchedule",
-          ].includes(name);
+        const changesPage = operationMetadata[name].refresh;
         if (changesPage && (state?.success === true || state?.ok === true))
           window.dispatchEvent(new Event("hutian:refresh"));
         return result;
+      })
+      .catch((error: unknown) => {
+        const action = operationMetadata[name].formResult;
+        if (!action) throw error;
+        const failure =
+          error instanceof ApiError
+            ? error
+            : new ApiError("操作结果尚未确认，请核对原记录。");
+        return {
+          ok: false,
+          error: failure.message,
+          code: failure.code,
+          requestId: failure.requestId,
+          recovery: failure.recovery,
+          submission: "unknown",
+        };
       })) as WorkbenchCommands[K];
 }
 export const getWorkspace = () => api<Workspace>("/v1/workspace");

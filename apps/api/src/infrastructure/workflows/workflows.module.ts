@@ -1,11 +1,14 @@
-import { Inject, Injectable, Module } from "@nestjs/common";
 import { DBOS } from "@dbos-inc/dbos-sdk";
+import { Inject, Injectable, Module } from "@nestjs/common";
 import { ConfigModule } from "../../config/config.module.js";
 import type { Environment } from "../../config/environment.js";
 @Injectable()
 export class WorkflowsService {
   private started = false;
   constructor(@Inject("ENV") private readonly env: Environment) {}
+  get ready() {
+    return this.started;
+  }
   async start() {
     DBOS.setConfig({
       name: "hutian-world-chat",
@@ -24,7 +27,8 @@ export class WorkflowsService {
     }
   }
   async beforeApplicationShutdown() {
-    if (this.started) await DBOS.shutdown();
+    this.started = false;
+    await DBOS.shutdown();
   }
 }
 @Module({

@@ -1,5 +1,11 @@
 import { z } from "zod";
 import type { AccessContext } from "./access.js";
+import {
+  executionPreferences,
+  type ExecutionPreferences,
+} from "./execution-preferences.js";
+export * from "./execution-preferences.js";
+export * from "./http.js";
 
 const name = z
   .string()
@@ -83,15 +89,6 @@ export type RuntimeDeviceNames = {
   } | null;
   settings: { nodeId: string; customName: string | null; version: number }[];
 };
-export const executionPreferences = z
-  .object({
-    model: z.string().trim().min(1).max(200).optional(),
-    effort: z.string().trim().min(1).max(80).optional(),
-    mode: z.string().trim().min(1).max(80).optional(),
-    serviceTier: z.string().trim().min(1).max(80).optional(),
-  })
-  .strict();
-export type ExecutionPreferences = z.infer<typeof executionPreferences>;
 export const roleRuntimeBindingInput = z
   .object({
     runtime: runtimeReference
@@ -140,8 +137,14 @@ export interface Workspace {
   roles: Role[];
 }
 
-export * from "./schedules.js";
 export * from "./access.js";
 export * from "./chat.js";
+export * from "./schedules.js";
 
 export type * from "./workbench.js";
+
+export * from "./conversation.js";
+
+export * from "./operations.js";
+
+export * from "./conversation-inputs.js";

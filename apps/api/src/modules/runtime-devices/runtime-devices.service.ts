@@ -1,18 +1,18 @@
+import { loadClientOptions } from "@harness-dock/client";
+import { type RuntimeDeviceNameInput } from "@hutian-world/contracts";
 import {
   ConflictException,
   ForbiddenException,
   Inject,
   Injectable,
 } from "@nestjs/common";
-import { DataSource, type EntityManager } from "typeorm";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import { loadClientOptions } from "@harness-dock/client";
-import { type RuntimeDeviceNameInput } from "@hutian-world/contracts";
+import { DataSource, type EntityManager } from "typeorm";
 import { appDataDirectory } from "../../config/paths.js";
 import { AccessContexts } from "../access/access-context.service.js";
+import { requireLocalConnection } from "../access/connection-access.js";
 import { ModuleConnectionSchema } from "../access/entities/access.schema.js";
-import { requireLocalConnection } from "../workbench/services/access-bindings.js";
 import { RuntimeDeviceSettingSchema } from "./entities/runtime-device-setting.schema.js";
 
 @Injectable()
@@ -22,7 +22,10 @@ export class RuntimeDevicesService {
     @Inject(AccessContexts) private readonly contexts: AccessContexts,
   ) {}
   async source() {
-    const access = await requireLocalConnection("dock");
+    const access = await requireLocalConnection(
+      { contexts: this.contexts },
+      "dock",
+    );
     const connectionId = access.connections.dock;
     if (!connectionId) throw new ForbiddenException("当前空间没有 Dock 连接。");
     const options = await loadClientOptions(

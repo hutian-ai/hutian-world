@@ -1,4 +1,4 @@
-import { SERVICE_ENDPOINT } from "../access/browser-session.service.js";
+import { chatRequestInput } from "@hutian-world/contracts";
 import {
   Body,
   Controller,
@@ -10,10 +10,10 @@ import {
   Query,
   SetMetadata,
 } from "@nestjs/common";
-import { chatRequestInput } from "@hutian-world/contracts";
+import { SERVICE_ENDPOINT } from "../access/browser-session.service.js";
 import { ChatRequestsService } from "./chat-requests.service.js";
 @SetMetadata(SERVICE_ENDPOINT, true)
-@Controller("v1/chat-requests")
+@Controller(["v1/chat-requests", "v2/chat-requests"])
 export class ChatRequestsController {
   constructor(
     @Inject(ChatRequestsService) private readonly requests: ChatRequestsService,

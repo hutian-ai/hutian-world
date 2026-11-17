@@ -18,3 +18,5 @@
 - Use a separate PostgreSQL database and non-admin application role. Local workspace infrastructure is under ../infra/postgres; independent installs can supply their own PostgreSQL. Credentials, receipts, evidence and runtime logs stay under ignored .local/ with private permissions. Never print passwords or connection strings.
 - The first stage is a trusted local single-creator workspace. The backend establishes an HttpOnly/SameSite browser session and validates origins. Application/module credentials stay server-side; never put them in browser build variables or treat this as multi-user authentication.
 - No production data reset, destructive migrations or automatic old-data migration. Use explicit versioned migrations, synchronize:false, and preserve stable role IDs independently of project membership.
+
+- 2026-11-17 架构规范：当前技术边界统一见 `docs/architecture.md`。应用用例位于 API `application/`，传输适配位于 `transport/browser/`；后台直接调用用例，不恢复伪 HTTP 或全局服务定位器。新 JSON 接口使用 v2 envelope/错误码和共享 schema；v1 仅兼容旧页面。持久副作用独立记录，保持原请求/运行 ID；数据库特定原子写放在有作用域 Repository。依赖方向由现有 ESLint 检查。交付及验收见 `docs/architecture-delivery-2026-11-17.md`。

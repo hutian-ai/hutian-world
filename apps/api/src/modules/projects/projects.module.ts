@@ -1,8 +1,8 @@
 import { Module } from "@nestjs/common";
-import { AccessModule } from "../access/access.module.js";
 import { DatabaseModule } from "../../infrastructure/database/database.module.js";
-import { ProjectsService } from "./projects.service.js";
+import { AccessModule } from "../access/access.module.js";
 import { ProjectsController } from "./projects.controller.js";
+import { ProjectsService } from "./projects.service.js";
 @Module({
   imports: [AccessModule, DatabaseModule],
   controllers: [ProjectsController],
