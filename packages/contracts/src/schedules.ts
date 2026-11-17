@@ -127,6 +127,17 @@ export interface ScheduledInbox {
   unread: number;
   attention: number;
 }
+export const scheduledNoticeChange = z
+  .object({
+    id: z.uuid(),
+    revision: z.string().regex(/^\d+$/),
+    updatedAt: z.iso.datetime({ offset: true }),
+    field: z.enum(["readAt", "resolvedAt"]),
+    before: z.iso.datetime({ offset: true }).nullable(),
+    after: z.iso.datetime({ offset: true }).nullable(),
+  })
+  .strict();
+export type ScheduledNoticeChange = z.infer<typeof scheduledNoticeChange>;
 export interface ScheduledRun {
   authority: RunAuthority;
   id: string;

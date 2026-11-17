@@ -18,6 +18,7 @@ import {
   scheduleInput,
   scheduleRule,
   scheduleCalendarQuery,
+  scheduledNoticeChange,
 } from "@hutian-world/contracts";
 import { SchedulesService } from "./schedules.service.js";
 @Controller("v1")
@@ -47,6 +48,14 @@ export class SchedulesController {
     @Param("id", new ParseUUIDPipe()) id: string,
   ) {
     return this.schedules.notice(id);
+  }
+  @Post("schedule-inbox/:id/undo") undoNotice(
+    @Param("id", new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
+    return this.schedules.undoNotice(
+      scheduledNoticeChange.extend({ id: z.literal(id) }).parse(body),
+    );
   }
   @Get("schedules") list() {
     return this.schedules.list();

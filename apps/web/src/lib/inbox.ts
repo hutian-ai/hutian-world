@@ -1,6 +1,7 @@
 import type {
   ScheduledInbox,
   ScheduledRunNotice,
+  ScheduledNoticeChange,
 } from "@hutian-world/contracts";
 import { api } from "./api";
 export const loadInbox = (filter: "all" | "unread" | "attention" = "all") =>
@@ -12,6 +13,15 @@ export async function markInbox(
   action: "read" | "unread" | "done",
   updatedAt: string,
 ) {
-  await api(`/v1/schedule-inbox/${id}`, "POST", { action, updatedAt });
+  const result = await api<{ change: ScheduledNoticeChange }>(
+    `/v1/schedule-inbox/${id}`,
+    "POST",
+    { action, updatedAt },
+  );
+  window.dispatchEvent(new Event("hutian:inbox"));
+  return result.change;
+}
+export async function undoInbox(change: ScheduledNoticeChange) {
+  await api(`/v1/schedule-inbox/${change.id}/undo`, "POST", change);
   window.dispatchEvent(new Event("hutian:inbox"));
 }

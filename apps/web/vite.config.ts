@@ -8,6 +8,7 @@ export default defineConfig({
       "@fullcalendar/react",
       "react",
       "react-dom",
+      "sonner",
       "@assistant-ui/react",
       "@assistant-ui/react-lexical",
       "@assistant-ui/react-markdown",

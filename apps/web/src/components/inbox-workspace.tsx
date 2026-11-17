@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Link, { useSearchParams } from "@/lib/navigation";
-import { ArrowLeft, CalendarClock, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarClock,
+  RefreshCw,
+  Check,
+  MoreHorizontal,
+  Mail,
+  MailOpen,
+} from "lucide-react";
 import type {
   Role,
   ScheduledInbox,
   ScheduledRun,
   ScheduledRunNotice,
+  ScheduledNoticeChange,
 } from "@hutian-world/contracts";
-import { loadInbox, loadInboxNotice, markInbox } from "@/lib/inbox";
+import { loadInbox, loadInboxNotice, markInbox, undoInbox } from "@/lib/inbox";
 import { loadScheduledRun, runSchedule } from "@/lib/schedule-actions";
 import { readConversation, type Conversation } from "@/lib/communications";
 import {
@@ -23,6 +32,33 @@ import { ScheduleRunStatus, scheduleRunTone } from "./schedule-run-status";
 import { Communications } from "./communications";
 import { Button } from "@hutian-ai/design/ui/button";
 import { Alert, AlertDescription } from "@hutian-ai/design/ui/alert";
+
+import { Checkbox } from "@hutian-ai/design/ui/checkbox";
+import { SelectionBar } from "@hutian-ai/design/ui/selection-bar";
+import { Item, ItemActions } from "@hutian-ai/design/ui/item";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@hutian-ai/design/ui/tooltip";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+} from "@hutian-ai/design/ui/dropdown-menu";
+import { toast } from "sonner";
+
+type MarkAction = "read" | "unread" | "done";
+const canResolve = (item: ScheduledRunNotice) =>
+  ["failed", "missed"].includes(item.run.state) && !item.resolvedAt;
+const needsMark = (item: ScheduledRunNotice, action: MarkAction) =>
+  action === "done"
+    ? canResolve(item)
+    : action === "read"
+      ? !item.readAt
+      : Boolean(item.readAt);
 
 function WorkConversation({
   run,
@@ -118,6 +154,17 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
   const [runError, setRunError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [checked, setChecked] = useState<Map<string, ScheduledRunNotice>>(
+    new Map(),
+  );
+  const [operationError, setOperationError] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const actionLock = useRef(false);
+  const currentId = useRef(selectedId);
+  currentId.current = selectedId;
+  const reading = useRef<Promise<unknown>>(Promise.resolve());
+  const undoToast = useRef<string | number | undefined>(undefined);
+  const refreshLatest = useRef<() => Promise<unknown>>(async () => {});
   const readKey = useRef("");
   const refreshVersion = useRef(0);
   const detailVersion = useRef(0);
@@ -129,6 +176,14 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
       const incoming = await loadInbox(filter);
       if (version !== refreshVersion.current) return;
       setData(incoming);
+      setChecked(
+        (previous) =>
+          new Map(
+            incoming.notices
+              .filter((item) => previous.has(item.id))
+              .map((item) => [item.id, item]),
+          ),
+      );
       setListError("");
     } catch (reason) {
       if (version !== refreshVersion.current) return;
@@ -168,6 +223,19 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
     }
   }, [selectedId]);
   useEffect(() => {
+    refreshLatest.current = () => Promise.all([refresh(), refreshDetail()]);
+  }, [refresh, refreshDetail]);
+  useEffect(
+    () => () => {
+      if (undoToast.current !== undefined) toast.dismiss(undoToast.current);
+    },
+    [],
+  );
+  useEffect(() => {
+    setChecked(new Map());
+    setData(null);
+    setFeedback("");
+    setOperationError("");
     void refresh();
     const timer = setInterval(() => void refresh(), 15000);
     return () => clearInterval(timer);
@@ -186,63 +254,152 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
     };
   }, [refreshDetail]);
   useEffect(() => {
-    if (!notice || notice.id !== selectedId || notice.readAt) return;
+    if (busy || !notice || notice.id !== selectedId || notice.readAt) return;
     const key = `${notice.id}:${notice.updatedAt}`;
     if (readKey.current === key) return;
     readKey.current = key;
-    void markInbox(notice.id, "read", notice.updatedAt)
+    reading.current = markInbox(notice.id, "read", notice.updatedAt)
       .then(() => Promise.all([refresh(), refreshDetail()]))
       .catch(() => {
         readKey.current = "";
         setError("已读状态未保存，请重新打开这条通知。");
       });
-  }, [notice, selectedId, refresh, refreshDetail]);
-  async function mark(action: "read" | "unread" | "done") {
-    if (!notice) return;
-    setBusy(true);
-    setError("");
-    readKey.current = `${notice.id}:${notice.updatedAt}`;
-    try {
-      await markInbox(notice.id, action, notice.updatedAt);
-      await Promise.all([refresh(), refreshDetail()]);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "通知状态未保存。");
-    } finally {
-      setBusy(false);
+  }, [busy, notice, selectedId, refresh, refreshDetail]);
+  async function restore(changes: ScheduledNoticeChange[]) {
+    if (actionLock.current) {
+      toast.info("请等待当前操作完成后再撤销。");
+      return;
     }
-  }
-  async function rerun() {
-    if (!run || busy) return;
+    actionLock.current = true;
     setBusy(true);
-    setError("");
+    setOperationError("");
+    await reading.current;
+    let restored = 0;
+    const failed: ScheduledNoticeChange[] = [];
+    for (const change of changes) {
+      if (change.field === "readAt" && change.id === currentId.current)
+        readKey.current = `${change.id}:${change.updatedAt}`;
+      try {
+        await undoInbox(change);
+        restored++;
+      } catch {
+        failed.push(change);
+      }
+    }
+    setFeedback(
+      `已撤销 ${restored} 项${failed.length ? `，${failed.length} 项未撤销` : ""}。`,
+    );
+    if (failed.length)
+      setOperationError(
+        "部分通知已有变化或撤销结果未确认，请刷新核对；已保存的后续状态不会被覆盖。",
+      );
+    await refreshLatest.current();
+    actionLock.current = false;
+    setBusy(false);
+    if (failed.length)
+      showUndo(failed, `${failed.length} 项未撤销，可核对后重试`);
+  }
+  function showUndo(changes: ScheduledNoticeChange[], message: string) {
+    undoToast.current = toast(message, {
+      id: "inbox-notice-action",
+      duration: 15000,
+      action: { label: "撤销", onClick: () => void restore(changes) },
+    });
+  }
+  async function markItems(items: ScheduledRunNotice[], action: MarkAction) {
+    if (actionLock.current) return;
+    const targets = items.filter((item) => needsMark(item, action));
+    if (!targets.length) return;
+    actionLock.current = true;
+    setBusy(true);
+    setOperationError("");
+    setFeedback(`正在处理 ${targets.length} 项…`);
+    await reading.current;
+    const changes: ScheduledNoticeChange[] = [];
+    const failures: string[] = [];
+    const succeeded = new Set<string>();
+    for (const item of targets) {
+      if (item.id === selectedId)
+        readKey.current = `${item.id}:${item.updatedAt}`;
+      try {
+        changes.push(await markInbox(item.id, action, item.updatedAt));
+        succeeded.add(item.id);
+      } catch (reason) {
+        failures.push(
+          reason instanceof Error
+            ? reason.message
+            : "保存结果未确认，请刷新核对。",
+        );
+      }
+    }
+    setChecked(
+      (previous) => new Map([...previous].filter(([id]) => !succeeded.has(id))),
+    );
+    const label =
+      action === "done" ? "已处理" : action === "read" ? "已读" : "未读";
+    const message = `${changes.length} 项已标为${label}${failures.length ? `，${failures.length} 项未完成` : ""}`;
+    setFeedback(message);
+    if (failures.length)
+      setOperationError(
+        `${failures[0]} 仍在当前列表的未完成项保留选择，可核对后重试。`,
+      );
+    await refreshLatest.current();
+    actionLock.current = false;
+    setBusy(false);
+    if (changes.length) showUndo(changes, message);
+  }
+  async function rerun(target: ScheduledRun) {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setBusy(true);
+    setOperationError("");
     retryRequest.current ??= {
-      scheduleId: run.scheduleId,
+      scheduleId: target.scheduleId,
       id: crypto.randomUUID(),
     };
-    if (retryRequest.current.scheduleId !== run.scheduleId)
+    if (retryRequest.current.scheduleId !== target.scheduleId)
       retryRequest.current = {
-        scheduleId: run.scheduleId,
+        scheduleId: target.scheduleId,
         id: crypto.randomUUID(),
       };
     try {
-      const result = await runSchedule(run.scheduleId, retryRequest.current.id);
+      const result = await runSchedule(
+        target.scheduleId,
+        retryRequest.current.id,
+      );
       if (!result.ok) {
-        setError(result.error);
+        setOperationError(result.error);
         return;
       }
       retryRequest.current = null;
       navigate(scheduledWorkHref(result.run.id, returnTo ?? undefined));
       await refresh();
     } catch (reason) {
-      setError(
+      setOperationError(
         reason instanceof Error
           ? reason.message
           : "重新运行的提交结果未确认，请核对原请求。",
       );
     } finally {
+      actionLock.current = false;
       setBusy(false);
     }
   }
+  const visible = data?.notices ?? [];
+  const selectedItems = [...checked.values()];
+  const primaryAction = filter === "attention" ? "done" : "read";
+  const actionableCount = selectedItems.filter((item) =>
+    needsMark(item, primaryAction),
+  ).length;
+  const resolveCount = selectedItems.filter(canResolve).length;
+  const selectItem = (item: ScheduledRunNotice, value: boolean) => {
+    setChecked((previous) => {
+      const next = new Map(previous);
+      if (value) next.set(item.id, item);
+      else next.delete(item.id);
+      return next;
+    });
+  };
   const member = (id: string) =>
     roles.find((role) => role.id === id)?.name ?? "成员暂不可用";
   const title = (item: ScheduledRunNotice) =>
@@ -272,7 +429,7 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
             variant="ghost"
             size="icon-sm"
             aria-label="刷新收件箱"
-            disabled={refreshing}
+            disabled={refreshing || busy}
             onClick={() => void Promise.all([refresh(), refreshDetail()])}
           >
             <RefreshCw
@@ -283,6 +440,11 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
           </Button>
         </div>
       </header>
+      {operationError && (
+        <Alert variant="destructive" className="m-3 w-auto">
+          <AlertDescription>{operationError}</AlertDescription>
+        </Alert>
+      )}
       <div className="inbox-workbench" data-focused={Boolean(selectedId)}>
         <aside className="inbox-list" aria-label="通知列表">
           <div className="flex flex-wrap gap-1 border-b p-3">
@@ -300,8 +462,12 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
                 size="sm"
                 key={value}
                 variant={filter === value ? "secondary" : "ghost"}
+                disabled={busy}
                 aria-pressed={filter === value}
                 onClick={() => {
+                  if (filter === value) return;
+                  setData(null);
+                  setChecked(new Map());
                   const next = new URLSearchParams(params);
                   if (value === "all") next.delete("filter");
                   else next.set("filter", value);
@@ -312,6 +478,77 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
               </Button>
             ))}
           </div>
+          <SelectionBar
+            selectedCount={checked.size}
+            totalCount={visible.length}
+            disabled={busy || !data}
+            onClear={() => setChecked(new Map())}
+            onSelectAll={(value) =>
+              setChecked(
+                value
+                  ? new Map(visible.map((item) => [item.id, item]))
+                  : new Map(),
+              )
+            }
+            description={
+              checked.size &&
+              filter === "attention" &&
+              resolveCount < checked.size
+                ? `仅 ${resolveCount} 项可标为已处理；其余事项需打开工作核对。`
+                : visible.length === 100
+                  ? "当前显示最近 100 条，全选仅作用于当前列表。"
+                  : undefined
+            }
+          >
+            <Button
+              size="sm"
+              disabled={busy || actionableCount === 0}
+              onClick={() => void markItems(selectedItems, primaryAction)}
+            >
+              {primaryAction === "done" ? "标为已处理" : "标为已读"}（
+              {actionableCount}）
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" disabled={busy}>
+                  更多
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                <DropdownMenuGroup>
+                  {(["read", "unread", "done"] as const)
+                    .filter((action) => action !== primaryAction)
+                    .map((action) => {
+                      const count = selectedItems.filter((item) =>
+                        needsMark(item, action),
+                      ).length;
+                      return (
+                        <DropdownMenuItem
+                          key={action}
+                          disabled={!count}
+                          onSelect={() => void markItems(selectedItems, action)}
+                        >
+                          {action === "read"
+                            ? "标为已读"
+                            : action === "unread"
+                              ? "标为未读"
+                              : "标为已处理"}
+                          （{count}）
+                        </DropdownMenuItem>
+                      );
+                    })}
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SelectionBar>
+          {feedback && (
+            <p
+              role="status"
+              className="border-b px-3 py-2 text-xs text-muted-foreground"
+            >
+              {feedback}
+            </p>
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {listError && (
               <Alert variant="destructive" className="m-3 w-auto">
@@ -341,48 +578,158 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
               </p>
             ) : (
               data.notices.map((item) => (
-                <button
+                <Item
                   key={item.id}
-                  className={`w-full border-b border-l-2 px-4 py-3 text-left hover:bg-accent/50 focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-2 ${selectedId === item.id ? "border-l-primary bg-accent" : "border-l-transparent"}`}
-                  aria-current={selectedId === item.id ? "true" : undefined}
-                  onClick={() => {
-                    readKey.current = "";
-                    updateSelection(item.id);
-                  }}
+                  size="sm"
+                  data-notice-id={item.id}
+                  className={`group/notice w-full flex-nowrap items-start gap-2 rounded-none border-0 border-b border-l-2 px-3 py-3 ${selectedId === item.id ? "border-l-primary bg-accent" : checked.has(item.id) ? "border-l-transparent bg-accent/50" : "border-l-transparent hover:bg-accent/30"}`}
                 >
-                  <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                    <span className="truncate">
-                      {member(item.run.snapshot.roleId)}
+                  <label className="flex min-h-8 shrink-0 cursor-pointer items-center px-1">
+                    <Checkbox
+                      checked={checked.has(item.id)}
+                      disabled={busy}
+                      aria-label={`选择 ${item.run.snapshot.title} ${scheduleAt(item.run.scheduledAt, item.run.snapshot.rule.timeZone)}`}
+                      onCheckedChange={(value) =>
+                        selectItem(item, value === true)
+                      }
+                    />
+                  </label>
+                  <button
+                    className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    disabled={busy}
+                    aria-current={selectedId === item.id ? "true" : undefined}
+                    onClick={() => {
+                      readKey.current = "";
+                      updateSelection(item.id);
+                    }}
+                  >
+                    <span className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                      <span className="truncate">
+                        {member(item.run.snapshot.roleId)}
+                      </span>
+                      {!item.readAt && (
+                        <span
+                          aria-label="未读"
+                          className="size-2 shrink-0 rounded-full bg-primary"
+                        />
+                      )}
                     </span>
-                    {!item.readAt && (
-                      <span
-                        aria-label="未读"
-                        className="size-2 shrink-0 rounded-full bg-primary"
-                      />
-                    )}
-                  </span>
-                  <span className="mt-1.5 block break-words text-sm font-medium">
-                    {item.run.snapshot.title}
-                  </span>
-                  <span
-                    className={`mt-1 block text-xs ${scheduleRunTone(item.run.state, Boolean(item.resolvedAt && item.kind !== "result"))}`}
-                  >
-                    {title(item)}
-                    {item.resolvedAt && item.kind !== "result"
-                      ? " · 已处理"
-                      : ""}
-                  </span>
-                  <time
-                    dateTime={item.run.scheduledAt}
-                    className="mt-1.5 block text-xs text-muted-foreground"
-                  >
-                    {item.run.manual ? "手动运行 · " : "定时触发 · "}
-                    {scheduleAt(
-                      item.run.scheduledAt,
-                      item.run.snapshot.rule.timeZone,
-                    )}
-                  </time>
-                </button>
+                    <span className="mt-1.5 block break-words text-sm font-medium">
+                      {item.run.snapshot.title}
+                    </span>
+                    <span
+                      className={`mt-1 block text-xs ${scheduleRunTone(item.run.state, Boolean(item.resolvedAt && item.kind !== "result"))}`}
+                    >
+                      {title(item)}
+                      {item.resolvedAt && item.kind !== "result"
+                        ? " · 已处理"
+                        : ""}
+                    </span>
+                    <time
+                      dateTime={item.run.scheduledAt}
+                      className="mt-1.5 block text-xs text-muted-foreground"
+                    >
+                      {item.run.manual ? "手动运行 · " : "定时触发 · "}
+                      {scheduleAt(
+                        item.run.scheduledAt,
+                        item.run.snapshot.rule.timeZone,
+                      )}
+                    </time>
+                  </button>
+                  <ItemActions className="flex-col gap-1">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={busy || checked.size > 0}
+                          aria-label={
+                            canResolve(item)
+                              ? "标为已处理"
+                              : item.readAt
+                                ? "标为未读"
+                                : "标为已读"
+                          }
+                          onClick={() =>
+                            void markItems(
+                              [item],
+                              canResolve(item)
+                                ? "done"
+                                : item.readAt
+                                  ? "unread"
+                                  : "read",
+                            )
+                          }
+                        >
+                          {canResolve(item) ? (
+                            <Check />
+                          ) : item.readAt ? (
+                            <Mail />
+                          ) : (
+                            <MailOpen />
+                          )}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {canResolve(item)
+                          ? "标为已处理"
+                          : item.readAt
+                            ? "标为未读"
+                            : "标为已读"}
+                      </TooltipContent>
+                    </Tooltip>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={busy || checked.size > 0}
+                          aria-label={`${item.run.snapshot.title}的操作`}
+                        >
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuGroup>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              void markItems(
+                                [item],
+                                item.readAt ? "unread" : "read",
+                              )
+                            }
+                          >
+                            {item.readAt ? "标为未读" : "标为已读"}
+                          </DropdownMenuItem>
+                          {canResolve(item) && (
+                            <DropdownMenuItem
+                              onSelect={() => void markItems([item], "done")}
+                            >
+                              标为已处理
+                            </DropdownMenuItem>
+                          )}
+                          {["failed", "missed"].includes(item.run.state) && (
+                            <DropdownMenuItem
+                              onSelect={() => void rerun(item.run)}
+                            >
+                              重新运行
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem asChild>
+                            <Link
+                              href={scheduleHref(
+                                item.run.scheduleId,
+                                scheduleReturnTo(returnTo),
+                              )}
+                            >
+                              任务与历史
+                            </Link>
+                          </DropdownMenuItem>
+                        </DropdownMenuGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </ItemActions>
+                </Item>
               ))
             )}
           </div>
@@ -473,7 +820,10 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
                       variant="ghost"
                       disabled={busy}
                       onClick={() =>
-                        void mark(notice.readAt ? "unread" : "read")
+                        void markItems(
+                          [notice],
+                          notice.readAt ? "unread" : "read",
+                        )
                       }
                     >
                       {notice.readAt ? "标为未读" : "标为已读"}
@@ -485,7 +835,7 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
                         size="sm"
                         variant="outline"
                         disabled={busy}
-                        onClick={() => void rerun()}
+                        onClick={() => void rerun(run)}
                       >
                         {busy ? "处理中…" : "重新运行"}
                       </Button>
@@ -494,7 +844,7 @@ export function InboxWorkspace({ roles }: { roles: Role[] }) {
                           size="sm"
                           variant="ghost"
                           disabled={busy}
-                          onClick={() => void mark("done")}
+                          onClick={() => void markItems([notice], "done")}
                         >
                           标为已处理
                         </Button>

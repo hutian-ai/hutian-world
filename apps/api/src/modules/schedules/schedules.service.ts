@@ -13,6 +13,7 @@ import {
   type ScheduleInput,
   type ScheduledInbox,
   type ScheduledRunNotice,
+  type ScheduledNoticeChange,
   type ScheduledRun,
   type ScheduleCalendarItem,
   scheduleCalendarQuery,
@@ -518,13 +519,66 @@ export class SchedulesService {
       );
     const c = this.contexts.current();
     const field = action === "done" ? "resolved_at" : "read_at";
-    const changed = await this.db.query(
-      `UPDATE scheduled_run_notices SET ${field}=${action === "unread" ? "NULL" : "now()"}
-      WHERE id=$1 AND workspace_id=$2 AND user_id=$3 AND date_trunc('milliseconds',updated_at)=$4::timestamptz RETURNING id`,
+    const [changed] = await this.db.query(
+      `WITH previous AS (
+        SELECT * FROM scheduled_run_notices
+        WHERE id=$1 AND workspace_id=$2 AND user_id=$3
+          AND date_trunc('milliseconds',updated_at)=$4::timestamptz
+        FOR UPDATE
+      ), changed AS (
+        UPDATE scheduled_run_notices n
+        SET ${field}=${action === "unread" ? "NULL" : "date_trunc('milliseconds',clock_timestamp())"}
+        FROM previous p WHERE n.id=p.id
+          ${action === "done" ? "AND EXISTS (SELECT 1 FROM scheduled_runs r WHERE r.id=n.id AND r.state IN ('failed','missed'))" : ""}
+        RETURNING p.${field} AS before, n.${field} AS after, n.xmin::text AS revision
+      ) SELECT * FROM changed`,
       [id, c.workspaceId, c.userId, updatedAt],
     );
-    if (!changed[1])
+    if (!changed)
       throw new ConflictException("通知状态已变化，请刷新后再操作。");
+    return {
+      ok: true,
+      change: {
+        id,
+        revision: changed.revision,
+        updatedAt,
+        field: action === "done" ? "resolvedAt" : "readAt",
+        before: changed.before?.toISOString() ?? null,
+        after: changed.after?.toISOString() ?? null,
+      } satisfies ScheduledNoticeChange,
+    };
+  }
+  async undoNotice(change: ScheduledNoticeChange) {
+    const run = await this.getRun(change.id);
+    if (
+      change.field === "resolvedAt" &&
+      !["failed", "missed"].includes(run.state)
+    )
+      throw new ConflictException("运行状态已变化，不能撤销原处理标记。");
+    const c = this.contexts.current();
+    const field = change.field === "readAt" ? "read_at" : "resolved_at";
+    const changed = await this.db.query(
+      `UPDATE scheduled_run_notices n SET ${field}=$5::timestamptz
+       WHERE id=$1 AND workspace_id=$2 AND user_id=$3
+         AND date_trunc('milliseconds',updated_at)=$4::timestamptz
+         AND date_trunc('milliseconds',${field}) IS NOT DISTINCT FROM $6::timestamptz
+         AND xmin::text=$7
+         ${change.field === "resolvedAt" ? "AND EXISTS (SELECT 1 FROM scheduled_runs r WHERE r.id=n.id AND r.state IN ('failed','missed'))" : ""}
+       RETURNING id`,
+      [
+        change.id,
+        c.workspaceId,
+        c.userId,
+        change.updatedAt,
+        change.before,
+        change.after,
+        change.revision,
+      ],
+    );
+    if (!changed[1])
+      throw new ConflictException(
+        "通知已有后续变化，未覆盖当前状态。请刷新核对。",
+      );
     return { ok: true };
   }
   async recordRoom(id: string, roomId: string) {
