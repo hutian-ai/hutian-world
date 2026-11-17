@@ -44,6 +44,8 @@ export const commands = {
   "resource-actions.findResources": m6.findResources,
   "resource-actions.readMemorySource": m6.readMemorySource,
   "resource-actions.observeMemory": m6.observeMemory,
+  "resource-actions.readKnowledgeSource": m6.readKnowledgeSource,
+  "resource-actions.inspectResourcePlugins": m6.inspectResourcePlugins,
   "role-runtime-actions.saveRoleRuntime": m7.saveRoleRuntime,
   "schedule-actions.loadSchedules": m8.loadSchedules,
   "schedule-actions.loadSchedule": m8.loadSchedule,

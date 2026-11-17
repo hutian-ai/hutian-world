@@ -202,7 +202,7 @@ export type KnowledgeDocument = {
   title: string;
   content: string;
   createdAt: string;
-  status: "indexing" | "ready" | "unknown";
+  status: "indexing" | "ready" | "unknown" | "failed";
   upstreamIds?: string[];
   previousId?: string;
   version?: number;
@@ -486,6 +486,19 @@ export interface WorkbenchCommands {
     id: string,
     scope?: ResourceScope,
   ) => Promise<{ ok: false; error: string } | { ok: true; data: any }>;
+  "resource-actions.readKnowledgeSource": (
+    id: string,
+    scope?: ResourceScope,
+  ) => Promise<
+    { ok: true; data: KnowledgeDocument } | { ok: false; error: string }
+  >;
+  "resource-actions.inspectResourcePlugins": (scope?: ResourceScope) => Promise<
+    Array<{
+      id: string;
+      kind: "memory" | "knowledge";
+      status: "ready" | "unconfigured" | "unavailable";
+    }>
+  >;
   "resource-actions.observeMemory": (
     id: string,
     scope?: ResourceScope,

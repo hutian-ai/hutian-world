@@ -34,6 +34,9 @@ Requires Node >=22.19, pnpm 11.24 and the shared local Docker PostgreSQL instanc
 # Workspace root, if PostgreSQL is not already running
 ./infra/postgres/manage.sh start
 
+pnpm --dir memory-access/sdk install
+pnpm --dir knowledge-gateway/sdk install
+
 cd hutian-world
 pnpm install
 pnpm setup:local
@@ -47,22 +50,22 @@ Open **http://127.0.0.1:3340**. The API listens on **127.0.0.1:3341**. Both bind
 
 For communication, start Matrix Agents Chat (`pnpm web` in the existing `matrix-team-chat` directory) and its Synapse homeserver. The defaults are `http://127.0.0.1:3310` and `http://127.0.0.1:8008`; override them in `.local/app.env` with `HUTIAN_CHAT_URL` and `HUTIAN_MATRIX_URL`. The optional host's private `.local/host-connections.json` maps the `workspace` connection alias to Hutian's private Dock application credential file. The browser supplies neither a credential nor a filesystem path. Existing runs keep their original connection snapshot and receipt.
 
-The current workspace already has private `.local/memory-client.json` and `.local/knowledge-client.json`. For a separate install, issue a scoped memory credential using [Memory Access](../memory-access/README.md), then configure a knowledge connector with `url`, `token`, `workspace` and a private absolute `library` path. Knowledge originals live in that library; the upstream index is derived. Keep connector files mode 600. These are trusted server configurations, not user-facing model settings. Resource pages report a missing connection rather than inventing data.
+Memory and knowledge connect through built-in server plugins in `apps/api/src/modules/resource-plugins/`. The independent [Memory Gateway](../memory-access/README.md) and [Knowledge Gateway](../knowledge-gateway/README.md) own their domain protocols, SDKs and backend adapters. World owns member/conversation authorization and product references. Keep the two repositories adjacent, install dependencies in both `sdk/` directories, and run `pnpm gateways:build` before resource setup. SDK packages are currently local dependencies, not npm releases.
+
+The workspace uses private `.local/memory-client.json` and `.local/knowledge-gateway-client.json` for its personal resources. Issue scoped clients using each gateway’s operator CLI; each file contains its gateway URL, token, grants and protocol version. Memory also declares its write mode. Keep connector files mode 600. The former `.local/knowledge-client.json` is retained only for explicit adoption/rollback, not normal World requests. Original files and index bindings belong to Knowledge Gateway; its operator may bind existing libraries without moving or re-indexing them. Resource pages report a missing connection rather than inventing data.
 
 Resource pages now distinguish **个人工作台 / 角色私有 / 会话共享**. Open a member's **资料与记忆** to add private sources. A two-person direct conversation can retrieve that role's private sources; groups and channels retrieve only their own shared sources. Existing workspace sources stay personal and are not silently shared. Chat displays the scope and links to its shared sources.
 
 2026-11-15：普通聊天默认检索相关资料，角色可通过宿主工具保存、更正、忘记记忆及读写知识资料；已交付聊天支持后台提取，长对话可保存有来源的摘要。实际机制、原生审批和验收边界见[聊天与记忆接入记录](docs/chat-memory-integration-2026-11-15.md)。
 
-For automatic preparation of a new scope's memory, configure the existing Memory Access operator CLI once on the trusted Web host:
+For automatic preparation of new member/conversation resources, the operator enables each gateway's restricted host-management endpoint and prepares a private host client JSON containing `url` and `token`. Import it once on the API host:
 
 ```sh
-pnpm resources:setup --python /absolute/path/to/python3 \
-  --admin /absolute/path/to/hutian_memory_access/admin.py \
-  --policy /private/memory-access/policy.json \
-  --url http://127.0.0.1:3332
+pnpm resources:setup --kind memory --config /private/memory-host-client.json
+pnpm resources:setup --kind knowledge --config /private/knowledge-host-client.json
 ```
 
-This creates a private `.local/memory-provisioner.json` and never replaces an existing file. It must point to the policy directory mounted by the existing Memory Access service. First explicit memory save prepares a separate bank and read/write credential for that scope; reads of empty scopes do not provision anything. The Web host is a trusted local operator; these privileges are never given to the browser or native Runtime. Scope clients and new knowledge originals live in private `.local/resource-clients/` and `.local/resource-libraries/`. The stage-4 resource layout itself needs no schema migration; stage 7 adds the chat-request migration. See [stage 4](docs/stage-4.md) for scope and sharing limits.
+This writes `.local/memory-provisioner.json` or `.local/knowledge-provisioner.json` without replacing existing files. Gateway policy fixes the allowed identifier pattern, backend connection, namespace rules and grants; World cannot send upstream credentials or paths. The first explicit save provisions a separate resource; reads do not provision. Management credentials never reach the browser or native Runtime. Existing memory clients remain in `.local/resource-clients/`, knowledge clients in `.local/knowledge-clients/`. Knowledge Gateway owns the original-document library, including operator-bound legacy directories. See [the module delivery and explicit adoption procedure](docs/resource-gateways-2026-11-17.md); no business-database migration is needed for this change.
 
 Runtime shows all machines authorized to Hutian by the configured Dock Server, grouped with the Harnesses each online machine reports. A machine and Harness pair is a distinct execution entry. Search by machine or Harness name and open a Harness directly to view its reported models. Offline machines remain visible; an inventory failure affects only that machine. Configure the service once via **运行环境 → 配置服务连接**, importing the application `client.json` issued by Dock Server. Hutian verifies it before saving it on the Web host in the private `.local/dock-client.json`. Individual machines pair with the same server through Harness Dock; viewing another machine does not require replacing the service connection. Use a verified WSS endpoint for remote Dock servers. Credentials with a custom CA file must be installed on the Web host with mode 600 and the referenced CA available to that host. [Harness Dock App guide](https://hutian-ai.github.io/harness-dock/app/)
 
@@ -80,7 +83,7 @@ pnpm start
 
 Use your own PostgreSQL database and a dedicated application role that owns it. No vector extension is needed for this milestone.
 
-1. Install dependencies with `pnpm install`.
+1. Keep `hutian-design`, `memory-access` and `knowledge-gateway` adjacent; install dependencies in Design and both gateway `sdk/` directories, then run `pnpm install` here.
 2. Create a private `.local/` directory; copy `.env.example` to `.local/app.env`.
 3. Set the database connection, a random API token of at least 40 characters, and a stable creator UUID. For example, generate the token with `openssl rand -hex 32` and the UUID with `node -e 'console.log(crypto.randomUUID())'`. Keep them in your private file, then `chmod 700 .local; chmod 600 .local/app.env`.
 4. Run `pnpm db:migrate` and `pnpm dev`; once the API is running, use another terminal to run `pnpm access:setup`.
@@ -115,7 +118,7 @@ Start with the [developer handoff guide](docs/tutorial/TECHNICAL.md) ([offline r
 [Stage 6](docs/stage-6.md) adds server-resolved request identity, explicit workspace / owner fields and composite foreign keys, plus persisted execution authority for scheduled work. Existing local connections are explicitly bound to one user and space in private `.local/access-bindings.json`; missing or mismatched bindings fail instead of using another default connection. Run `pnpm access:setup` after migrating and starting the API. It preserves upstream credentials and existing role / room / resource identities. This is still a single-owner local application: there is no login, invitation, tenant switcher or completed multi-user authorization product.
 
 
-Memory connectors default to the backend-neutral `/v2` protocol; `protocol: "v1"` is an explicit legacy compatibility option. Connector `writeMode` is `infer` by default and can explicitly be `verbatim`; unsupported semantics are rejected. New scope preparation also accepts `--connection <operator-connection-id> --writeMode <infer|verbatim>`. Existing scopes and upstream banks are never silently rebound. See the independent [protocol](../memory-access/PROTOCOL.md).
+Memory connectors default to the backend-neutral `/v2` protocol; `protocol: "v1"` is an explicit legacy compatibility option. Connector `writeMode` is `infer` by default and can explicitly be `verbatim`; unsupported semantics are rejected. The gateway operator fixes the connection and write mode in its host issuer configuration; World does not choose them per request. Existing scopes and upstream banks are never silently rebound. See the independent [protocol](../memory-access/PROTOCOL.md).
 
 ## Shared UI development
 

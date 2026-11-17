@@ -1,37 +1,29 @@
 import { appDataDirectory } from "../../../config/paths.js";
-import {
-  mkdir,
-  readFile,
-  readdir,
-  stat,
-  unlink,
-  writeFile,
-} from "node:fs/promises";
+import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { z } from "zod";
+import {
+  GatewayError,
+  GatewayBusyError,
+} from "@hutian-ai/memory-gateway-client";
+import type { KnowledgeDocument as GatewayDocument } from "@hutian-ai/knowledge-gateway-client";
 import {
   resolveResourceScope,
   scopeUrl,
   type ResourceScope,
 } from "./resource-scopes.js";
-import { scopedMemoryClient } from "./resource-provisioning.js";
-import { requireLocalConnection } from "./access-bindings.js";
+import {
+  scopedMemoryClient,
+  scopedKnowledgeClient,
+  privateResourceConfig,
+} from "./resource-provisioning.js";
+import { resourcePlugins } from "../../resource-plugins/registry.js";
 
+const { memory: memoryPlugin, knowledge: knowledgePlugin } = resourcePlugins;
 const local = appDataDirectory;
 const uuid = z.uuid();
-const memoryConfig = z.object({
-  url: z.url(),
-  token: z.string(),
-  grants: z.record(z.string(), z.array(z.string())),
-  protocol: z.enum(["v1", "v2"]).default("v2"),
-  writeMode: z.enum(["infer", "verbatim"]).default("infer"),
-});
-const knowledgeConfig = z.object({
-  url: z.url(),
-  token: z.string(),
-  workspace: z.string().regex(/^[a-z0-9-]+$/),
-  library: z.string(),
-});
+const sourceId = z.string().regex(/^[A-Za-z0-9_.:-]{1,128}$/);
+export { GatewayBusyError as ResourceBusyError };
 export type Reference = {
   id: string;
   kind: "memory" | "knowledge";
@@ -40,110 +32,54 @@ export type Reference = {
   url: string;
   version: string;
 };
-export type KnowledgeDocument = {
-  id: string;
-  title: string;
-  content: string;
-  createdAt: string;
-  status: "indexing" | "ready" | "unknown";
-  upstreamIds?: string[];
+export type KnowledgeDocument = Omit<GatewayDocument, "previousId"> & {
   previousId?: string;
-  version?: number;
 };
-async function resourceConfig<T>(
-  name: string,
-  schema: z.ZodType<T>,
-): Promise<T> {
-  await requireLocalConnection("resources");
-  const file = resolve(local, name);
-  const info = await stat(file);
-  if (!info.isFile() || info.size > 32768 || info.mode & 0o077)
-    throw new Error("资源连接凭据必须是私有文件。");
-  return schema.parse(JSON.parse(await readFile(file, "utf8")));
-}
-export class ResourceBusyError extends Error {}
-async function remote(
-  url: string,
-  token: string,
-  path: string,
-  body?: unknown,
-  missing = false,
-  method?: string,
-): Promise<any> {
-  const origin = new URL(url);
-  if (origin.protocol !== "http:" || origin.hostname !== "127.0.0.1")
-    throw new Error("资源服务必须通过可信本机地址接入。");
-  let response: Response;
+async function absent<T>(request: Promise<T>): Promise<T | null> {
   try {
-    response = await fetch(origin.origin + path, {
-      method: method ?? (body === undefined ? "GET" : "POST"),
-      cache: "no-store",
-      redirect: "error",
-      signal: AbortSignal.timeout(45_000),
-      headers: {
-        authorization: `Bearer ${token}`,
-        ...(body === undefined ? {} : { "content-type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-  } catch {
-    throw new Error("资源服务响应尚未确认，请保留原操作并稍后核对。");
+    return await request;
+  } catch (error) {
+    if (error instanceof GatewayError && error.status === 404) return null;
+    throw error;
   }
-  if (missing && response.status === 404) return null;
-  if (response.status === 409)
-    throw new ResourceBusyError(
-      "资源仍在处理原操作，本次未获确认，请稍后使用原操作编号核对。",
-    );
-  if (!response.ok)
-    throw new Error(
-      response.status === 409
-        ? "原操作仍在处理中，请先核对原记录。"
-        : "资源服务未确认此操作，请检查连接与当前授权。",
-    );
-  return response.json();
 }
 async function memory(scope?: ResourceScope, create = false) {
   const space = await resolveResourceScope(scope);
-  const c =
+  const config =
     space.kind === "workspace"
-      ? await resourceConfig("memory-client.json", memoryConfig)
+      ? memoryPlugin.parseConfig(
+          await privateResourceConfig("memory-client.json"),
+        )
       : await scopedMemoryClient(space.key, create);
-  if (!c) return null;
+  if (!config) return null;
   const id =
     space.kind === "workspace"
-      ? Object.keys(c.grants).find((k) => c.grants[k]?.includes("read"))
+      ? Object.keys(config.grants).find((k) =>
+          config.grants[k]?.includes("read"),
+        )
       : space.key;
   if (
-    space.kind !== "workspace" &&
-    (!c.grants[id!]?.includes("read") || Object.keys(c.grants).length !== 1)
+    !id ||
+    (space.kind !== "workspace" &&
+      (!config.grants[id]?.includes("read") ||
+        Object.keys(config.grants).length !== 1))
   )
-    throw new Error("记忆凭据与当前资源范围不一致，未读取内容。");
-  if (!id) throw new Error("尚未授予工作台记忆权限。");
-  return { ...c, id };
+    throw new Error("记忆凭据与当前资源范围不一致。");
+  return memoryPlugin.connect(config, id);
 }
 export async function listMemories(scope?: ResourceScope) {
-  const c = await memory(scope);
-  if (!c) return { resource: "", documents: [] };
-  if (c.protocol === "v2") {
-    const result = await remote(
-      c.url,
-      c.token,
-      `/v2/resources/${encodeURIComponent(c.id)}/sources`,
-    );
+  const client = await memory(scope);
+  if (!client) return { resource: "", documents: [] };
+  if (client.config.protocol === "v2") {
+    const result = await client.sources();
     const documents = await Promise.all(
-      (result.items ?? []).slice(0, 100).map(async (item: any) => {
-        const source = await remote(
-          c.url,
-          c.token,
-          `/v2/resources/${encodeURIComponent(c.id)}/sources/${encodeURIComponent(item.source_id)}`,
-          undefined,
-          true,
-        );
+      result.items.slice(0, 100).map(async (item) => {
+        const source = await absent(client.source(item.source_id));
         return {
           id: item.source_id,
           title:
             item.title ||
-            String(source?.content ?? "")
+            source?.content
               .split("\n")
               .find((line) => line.trim())
               ?.replace(/^#+\s*/, "")
@@ -154,77 +90,48 @@ export async function listMemories(scope?: ResourceScope) {
         };
       }),
     );
-    return { resource: c.id, documents, writeMode: c.writeMode };
+    return {
+      resource: client.resourceId,
+      documents,
+      writeMode: client.config.writeMode,
+    };
   }
-  const result = await remote(
-    c.url,
-    c.token,
-    `/v1/resources/${encodeURIComponent(c.id)}/documents`,
-    undefined,
-    true,
+  const result = await absent(client.legacyDocuments());
+  const documents = await Promise.all(
+    (result?.items ?? result?.documents ?? [])
+      .slice(0, 50)
+      .map(async (item) => {
+        const id = item.id ?? item.document_id ?? "";
+        const source = id ? await absent(client.legacyDocument(id)) : null;
+        return {
+          id,
+          title:
+            source?.original_text
+              ?.split("\n")
+              .find((line) => line.trim())
+              ?.replace(/^#+\s*/, "")
+              .slice(0, 60) || "保存的工作记录",
+          createdAt: item.created_at ?? "",
+          status: item.status ?? "saved",
+        };
+      }),
   );
-  const items = result?.items ?? result?.documents ?? [];
-  const documents = Array.isArray(items)
-    ? await Promise.all(
-        items.slice(0, 50).map(async (d: any) => {
-          const id = String(d.id ?? d.document_id ?? "");
-          const source = id
-            ? await remote(
-                c.url,
-                c.token,
-                `/v1/resources/${encodeURIComponent(c.id)}/documents/${encodeURIComponent(id)}`,
-                undefined,
-                true,
-              )
-            : null;
-          const firstLine = String(source?.original_text ?? "")
-            .split("\n")
-            .find((line) => line.trim())
-            ?.replace(/^#+\s*/, "");
-          return {
-            id,
-            title: firstLine?.slice(0, 60) || "保存的工作记录",
-            createdAt: String(d.created_at ?? ""),
-            status: String(d.status ?? "saved"),
-          };
-        }),
-      )
-    : [];
   return {
-    resource: c.id,
+    resource: client.resourceId,
     documents: documents.filter((d) => d.id),
   };
 }
 export async function readMemory(id: string, scope?: ResourceScope) {
-  const c = await memory(scope);
-  if (!c) throw new Error("当前范围没有这份记忆来源。");
-  if (c.protocol === "v2") {
-    const source = await remote(
-      c.url,
-      c.token,
-      `/v2/resources/${encodeURIComponent(c.id)}/sources/${encodeURIComponent(
-        z
-          .string()
-          .regex(/^[A-Za-z0-9_.:-]{1,128}$/)
-          .parse(id),
-      )}`,
-    );
-    return {
-      original_text: source.content,
-      document_metadata: source.metadata,
-      provided_by: source.provided_by,
-    };
-  }
-  return remote(
-    c.url,
-    c.token,
-    `/v1/resources/${encodeURIComponent(c.id)}/documents/${encodeURIComponent(
-      z
-        .string()
-        .regex(/^[A-Za-z0-9_.:-]{1,128}$/)
-        .parse(id),
-    )}`,
-  );
+  const client = await memory(scope);
+  if (!client) throw new Error("当前范围没有这份记忆来源。");
+  sourceId.parse(id);
+  if (client.config.protocol === "v1") return client.legacyDocument(id);
+  const source = await client.source(id);
+  return {
+    original_text: source.content,
+    document_metadata: source.metadata,
+    provided_by: source.provided_by,
+  };
 }
 export async function remember(
   input: {
@@ -239,98 +146,65 @@ export async function remember(
 ) {
   const id = uuid.parse(input.id);
   const content = z.string().trim().min(1).max(20000).parse(input.content);
-  const c = await memory(scope, true);
-  if (!c) throw new Error("记忆空间尚未准备。");
-  if (c.protocol === "v2")
-    return remote(
-      c.url,
-      c.token,
-      `/v2/resources/${encodeURIComponent(c.id)}/memories`,
-      {
-        source_id: id,
-        operation_id: input.operationId ? uuid.parse(input.operationId) : id,
-        mode: c.writeMode,
-        content: input.title ? `# ${input.title}\n\n${content}` : content,
-        source_uri:
-          input.sourceUri ??
-          `hutian://memory/${(await resolveResourceScope(scope)).key}/${id}`,
-        source_version: input.sourceVersion ?? "1",
-        evidence_status: "reported",
-      },
-    );
-  return remote(
-    c.url,
-    c.token,
-    `/v1/resources/${encodeURIComponent(c.id)}/memories`,
-    {
-      document_id: id,
-      operation_id: input.operationId ? uuid.parse(input.operationId) : id,
-      content: input.title ? `# ${input.title}\n\n${content}` : content,
-      source_uri: `hutian://memory/${(await resolveResourceScope(scope)).key}/${id}`,
-      source_version: "1",
-      evidence_status: "reported",
-    },
-  );
+  const client = await memory(scope, true);
+  if (!client) throw new Error("记忆空间尚未准备。");
+  const value = {
+    operation_id: input.operationId ? uuid.parse(input.operationId) : id,
+    content: input.title ? `# ${input.title}\n\n${content}` : content,
+    source_uri:
+      input.sourceUri ??
+      `hutian://memory/${(await resolveResourceScope(scope)).key}/${id}`,
+    source_version: input.sourceVersion ?? "1",
+    evidence_status: "reported" as const,
+  };
+  return client.config.protocol === "v2"
+    ? client.write({ ...value, source_id: id, mode: client.config.writeMode })
+    : client.legacyWrite({ ...value, document_id: id });
 }
 export async function memoryOperation(id: string, scope?: ResourceScope) {
-  const c = await memory(scope);
-  if (!c) throw new Error("当前范围没有这项记忆操作。");
-  return remote(
-    c.url,
-    c.token,
-    `/${c.protocol}/resources/${encodeURIComponent(c.id)}/operations/${uuid.parse(id)}`,
-  );
+  const client = await memory(scope);
+  if (!client) throw new Error("当前范围没有这项记忆操作。");
+  return client.operation(uuid.parse(id));
 }
 export async function searchMemory(
   query: string,
   scope?: ResourceScope,
 ): Promise<Reference[]> {
-  const c = await memory(scope);
-  if (!c) return [];
-  if (c.protocol === "v2") {
-    const result = await remote(
-      c.url,
-      c.token,
-      `/v2/resources/${encodeURIComponent(c.id)}/search`,
-      { query: query.slice(0, 2000), limit: 5 },
-    );
-    const grouped = new Map<string, Reference>();
-    const versions = new Map<string, Set<string>>();
-    for (const row of (result.items ?? []).slice(0, 5)) {
-      if (typeof row.text !== "string" || !row.text.trim()) continue;
-      for (const id of new Set<string>(
-        (row.source_ids ?? []).filter((id: unknown) => typeof id === "string"),
-      )) {
-        const version = String(row.metadata?.source_version ?? "检索时版本");
-        if (!versions.has(id)) versions.set(id, new Set());
-        versions.get(id)!.add(version);
-        const prior = grouped.get(id);
-        if (prior) {
-          if (!prior.text.includes(row.text))
-            prior.text = `${prior.text}\n\n${row.text}`.slice(0, 6000);
-        } else
-          grouped.set(id, {
-            id,
-            kind: "memory",
-            title: "工作记忆",
-            text: row.text.slice(0, 3000),
-            url: scopeUrl("memory", scope, id),
-            version,
-          });
-      }
+  const client = await memory(scope);
+  if (!client) return [];
+  const grouped = new Map<string, Reference>();
+  const versions = new Map<string, Set<string>>();
+  const add = (id: string, text: string, version: string) => {
+    if (!versions.has(id)) versions.set(id, new Set());
+    versions.get(id)!.add(version);
+    const prior = grouped.get(id);
+    if (prior) {
+      if (!prior.text.includes(text))
+        prior.text = `${prior.text}\n\n${text}`.slice(0, 6000);
+    } else
+      grouped.set(id, {
+        id,
+        kind: "memory",
+        title: "工作记忆",
+        text: text.slice(0, 3000),
+        url: scopeUrl("memory", scope, id),
+        version,
+      });
+  };
+  if (client.config.protocol === "v2") {
+    for (const row of (await client.search(query.slice(0, 2000))).items.slice(
+      0,
+      5,
+    )) {
+      if (!row.text.trim()) continue;
+      for (const id of new Set(row.source_ids))
+        add(id, row.text, String(row.metadata?.source_version ?? "检索时版本"));
     }
     return Promise.all(
       [...grouped.values()].map(async (reference) => {
-        // Read only sources already returned within this authorized scope. A current
-        // source title does not establish the version of an inferred search fragment.
-        const source = await remote(
-          c.url,
-          c.token,
-          `/v2/resources/${encodeURIComponent(c.id)}/sources/${encodeURIComponent(reference.id)}`,
-          undefined,
-          true,
-        ).catch(() => null);
-        const title = String(source?.content ?? "")
+        // Current source title does not establish the version of an inferred fragment.
+        const source = await client.source(reference.id).catch(() => null);
+        const title = source?.content
           .split("\n")
           .find((line) => line.trim())
           ?.replace(/^#+\s*/, "")
@@ -343,88 +217,59 @@ export async function searchMemory(
       }),
     );
   }
-  const result = await remote(
-    c.url,
-    c.token,
-    `/v1/resources/${encodeURIComponent(c.id)}/recall`,
-    { query: query.slice(0, 2000), max_tokens: 1500 },
-    true,
-  );
-  const items = result?.results ?? [];
-  const grouped = new Map<string, Reference>();
-  for (const row of Array.isArray(items) ? items.slice(0, 5) : []) {
-    if (typeof row.text !== "string") continue;
+  const result = await absent(client.legacyRecall(query.slice(0, 2000)));
+  for (const row of result?.results.slice(0, 5) ?? []) {
+    if (!row.text) continue;
     const facts = row.document_id
       ? [row]
-      : (row.source_fact_ids ?? [])
-          .map((id: string) => result?.source_facts?.[id])
-          .filter(Boolean);
-    for (const fact of facts) {
-      const id = fact.document_id;
-      if (typeof id !== "string" || !id) continue;
-      const prior = grouped.get(id);
-      if (prior) {
-        if (!prior.text.includes(row.text))
-          prior.text = (prior.text + "\n\n" + row.text).slice(0, 6000);
-      } else
-        grouped.set(id, {
-          id,
-          kind: "memory",
-          title: "工作记忆",
-          text: row.text.slice(0, 3000),
-          url: scopeUrl("memory", scope, id),
-          version: String(fact.metadata?.source_version ?? "检索时版本"),
-        });
-    }
+      : (row.source_fact_ids ?? []).map((id) => result?.source_facts?.[id]);
+    for (const fact of facts)
+      if (fact?.document_id)
+        add(
+          fact.document_id,
+          row.text,
+          String(fact.metadata?.source_version ?? "检索时版本"),
+        );
   }
   return [...grouped.values()];
 }
-
-async function knowledge(scope?: ResourceScope) {
+async function knowledge(scope?: ResourceScope, create = false) {
   const space = await resolveResourceScope(scope);
-  const c = await resourceConfig("knowledge-client.json", knowledgeConfig);
-  return space.kind === "workspace"
-    ? c
-    : {
-        ...c,
-        workspace: space.key,
-        library: resolve(local, "resource-libraries", space.key),
-      };
+  const config =
+    space.kind === "workspace"
+      ? knowledgePlugin.parseConfig(
+          await privateResourceConfig("knowledge-gateway-client.json"),
+        )
+      : await scopedKnowledgeClient(space.key, create);
+  if (!config) return null;
+  const id =
+    space.kind === "workspace"
+      ? Object.keys(config.grants).find((k) =>
+          config.grants[k]?.includes("read"),
+        )
+      : space.key;
+  if (
+    !id ||
+    (space.kind !== "workspace" &&
+      (!config.grants[id]?.includes("read") ||
+        Object.keys(config.grants).length !== 1))
+  )
+    throw new Error("知识凭据与当前资源范围不一致。");
+  return knowledgePlugin.connect(config, id);
 }
+const knowledgeDocument = (doc: GatewayDocument): KnowledgeDocument => ({
+  ...doc,
+  previousId: doc.previousId ?? undefined,
+});
 export async function listKnowledge(
   scope?: ResourceScope,
   history = false,
 ): Promise<KnowledgeDocument[]> {
-  const c = await knowledge(scope);
-  await mkdir(c.library, { recursive: true, mode: 0o700 });
-  const names = (await readdir(c.library)).filter((n) =>
-    /^[a-f0-9-]{36}\.json$/.test(n),
-  );
-  const documents = (
-    await Promise.all(
-      names.map(
-        async (n) =>
-          JSON.parse(
-            await readFile(resolve(c.library, n), "utf8"),
-          ) as KnowledgeDocument,
-      ),
-    )
-  ).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const superseded = new Set(
-    documents
-      .filter((d) => d.status === "ready")
-      .map((d) => d.previousId)
-      .filter(Boolean),
-  );
-  return history ? documents : documents.filter((d) => !superseded.has(d.id));
+  const client = await knowledge(scope);
+  return client ? (await client.documents(history)).map(knowledgeDocument) : [];
 }
 export async function saveKnowledge(
-  input: {
-    id: string;
-    title: string;
-    content: string;
-    previousId?: string;
-  },
+  input: { id: string; title: string; content: string; previousId?: string },
   scope?: ResourceScope,
 ) {
   const value = z
@@ -435,91 +280,60 @@ export async function saveKnowledge(
       previousId: uuid.optional(),
     })
     .parse(input);
-  const c = await knowledge(scope);
-  await mkdir(c.library, { recursive: true, mode: 0o700 });
-  const file = resolve(c.library, value.id + ".json");
-  try {
-    const old = JSON.parse(await readFile(file, "utf8")) as KnowledgeDocument;
-    if (old.title !== value.title || old.content !== value.content)
-      throw new Error("原导入请求不能替换内容，请保留原记录并创建新文档。");
-    return old;
-  } catch (e) {
-    if (!(e && typeof e === "object" && "code" in e && e.code === "ENOENT"))
-      throw e;
-  }
-  const prior = value.previousId
-    ? (await listKnowledge(scope)).find((d) => d.id === value.previousId)
-    : undefined;
-  if (value.previousId && !prior)
-    throw new Error("资料版本已变更，请重新读取最新版本再更新。");
-  const doc: KnowledgeDocument = {
-    ...value,
-    createdAt: new Date().toISOString(),
-    status: "indexing",
-    version: (prior?.version ?? (prior ? 1 : 0)) + 1,
-  };
-  await writeFile(file, JSON.stringify(doc), { mode: 0o600, flag: "wx" });
-  try {
-    const workspace = await remote(
-      c.url,
-      c.token,
-      `/api/v1/workspace/${c.workspace}`,
-    );
-    if (!workspace?.workspace?.length)
-      await remote(c.url, c.token, "/api/v1/workspace/new", {
-        name: c.workspace,
-      });
-    const result = await remote(c.url, c.token, "/api/v1/document/raw-text", {
-      textContent: value.content,
-      addToWorkspaces: c.workspace,
-      metadata: {
-        title: value.id + ".md",
-        docSource: `hutian://knowledge/${value.id}`,
-        description: value.title,
-      },
-    });
-    if (!result.success) throw new Error("索引未确认完成，原文已保存。");
-    doc.status = "ready";
-    doc.upstreamIds = (result.documents ?? []).map((d: any) => String(d.id));
-  } catch {
-    doc.status = "unknown";
-  }
-  await writeFile(file, JSON.stringify(doc), { mode: 0o600 });
-  return doc;
+  const client = await knowledge(scope, true);
+  if (!client) throw new Error("知识空间尚未准备。");
+  return knowledgeDocument(await client.import(value));
 }
 export async function searchKnowledge(
   query: string,
   scope?: ResourceScope,
 ): Promise<Reference[]> {
-  const docs = (await listKnowledge(scope)).filter((d) => d.status === "ready");
-  if (!docs.length) return [];
-  const c = await knowledge(scope);
-  const result = await remote(
-    c.url,
-    c.token,
-    `/api/v1/workspace/${c.workspace}/vector-search`,
-    { query: query.slice(0, 2000), topN: 5, scoreThreshold: 0 },
-  );
-  return (result.results ?? []).flatMap((r: any) => {
-    const doc = docs.find(
-      (d) =>
-        r.metadata?.docSource === `hutian://knowledge/${d.id}` ||
-        r.metadata?.title === d.id + ".md" ||
-        d.upstreamIds?.includes(r.metadata?.id),
-    );
-    return doc && typeof r.text === "string"
-      ? [
-          {
-            id: doc.id,
-            kind: "knowledge" as const,
-            title: doc.title,
-            text: r.text.slice(0, 4000),
-            url: scopeUrl("knowledge", scope, doc.id),
-            version: String(doc.version ?? 1),
-          },
-        ]
-      : [];
-  });
+  const client = await knowledge(scope);
+  if (!client) return [];
+  return (await client.search(query.slice(0, 2000))).items.map((item) => ({
+    id: item.document_id,
+    kind: "knowledge",
+    title: item.title,
+    text: item.text.slice(0, 4000),
+    url: scopeUrl("knowledge", scope, item.document_id),
+    version: String(item.version),
+  }));
+}
+export async function readKnowledge(
+  id: string,
+  scope?: ResourceScope,
+): Promise<KnowledgeDocument> {
+  const client = await knowledge(scope);
+  if (!client) throw new Error("当前范围没有这份知识原文。");
+  return knowledgeDocument(await client.document(uuid.parse(id)));
+}
+export async function resourcePluginStatus(scope?: ResourceScope) {
+  const inspect = async (
+    id: string,
+    kind: "memory" | "knowledge",
+    check: () => Promise<unknown | null>,
+  ) => {
+    try {
+      const capabilities = await check();
+      return {
+        id,
+        kind,
+        status: capabilities ? ("ready" as const) : ("unconfigured" as const),
+      };
+    } catch {
+      return { id, kind, status: "unavailable" as const };
+    }
+  };
+  return Promise.all([
+    inspect(memoryPlugin.id, "memory", async () => {
+      const client = await memory(scope);
+      return client ? memoryPlugin.check(client) : null;
+    }),
+    inspect(knowledgePlugin.id, "knowledge", async () => {
+      const client = await knowledge(scope);
+      return client ? knowledgePlugin.check(client) : null;
+    }),
+  ]);
 }
 export async function prepareReferences(
   query: string,
@@ -582,23 +396,14 @@ export async function prepareReferences(
   };
 }
 
-/** Mutations preserve the backend's declared deletion semantics. */
+/** Deletion follows the selected module's declared semantics. */
 export async function forgetMemory(id: string, scope?: ResourceScope) {
-  const c = await memory(scope);
-  if (!c || c.protocol !== "v2")
+  const client = await memory(scope);
+  if (!client || client.config.protocol !== "v2")
     throw new Error("此资源尚不支持当前删除协议。");
-  z.string()
-    .regex(/^[A-Za-z0-9_.:-]{1,128}$/)
-    .parse(id);
-  await readMemory(id, scope);
-  const result = await remote(
-    c.url,
-    c.token,
-    `/v2/resources/${encodeURIComponent(c.id)}/sources/${encodeURIComponent(id)}`,
-    undefined,
-    false,
-    "DELETE",
-  );
+  sourceId.parse(id);
+  await client.source(id);
+  const result = await client.deleteSource(id);
   const space = await resolveResourceScope(scope);
   await unlink(
     resolve(local, "memory-preferences", space.key, id + ".json"),
@@ -606,13 +411,10 @@ export async function forgetMemory(id: string, scope?: ResourceScope) {
   return result;
 }
 export async function memoryCapabilities(scope?: ResourceScope) {
-  const c = await memory(scope, true);
-  if (!c || c.protocol !== "v2") throw new Error("此资源尚不支持能力查询。");
-  return remote(
-    c.url,
-    c.token,
-    `/v2/resources/${encodeURIComponent(c.id)}/capabilities`,
-  );
+  const client = await memory(scope, true);
+  if (!client || client.config.protocol !== "v2")
+    throw new Error("此资源尚不支持能力查询。");
+  return client.capabilities();
 }
 
 export async function registerPreference(

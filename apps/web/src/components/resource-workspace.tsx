@@ -29,6 +29,7 @@ import {
   loadResources,
   observeMemory,
   readMemorySource,
+  readKnowledgeSource,
   saveResource,
 } from "@/lib/resource-actions";
 import type { ResourceScope } from "@/lib/resource-scopes";
@@ -40,6 +41,7 @@ type Document = {
   content?: string;
   createdAt?: string;
   status?: string;
+  version?: number;
 };
 export function ResourceWorkspace({
   kind,
@@ -76,7 +78,7 @@ export function ResourceWorkspace({
     selectedSource.current = doc.id;
     setSelected(doc);
     setContent(doc.content ?? "");
-    setSourceVersion(isMemory ? "" : "1");
+    setSourceVersion(isMemory ? "" : String(doc.version ?? 1));
     if (isMemory) {
       const r = await readMemorySource(doc.id, scope);
       if (selectedSource.current !== doc.id) return;
@@ -97,7 +99,11 @@ export function ResourceWorkspace({
       if (initialSource) {
         const d = docs.find((d) => d.id === initialSource);
         if (d) await choose(d);
-        else
+        else if (!isMemory) {
+          const original = await readKnowledgeSource(initialSource, scope);
+          if (original.ok) await choose(original.data);
+          else setError(original.error);
+        } else
           setError(
             "这份原文暂不可读取，可能仍在处理中、已删除或当前范围不可访问。",
           );
@@ -160,7 +166,9 @@ export function ResourceWorkspace({
         setNotice(
           r.data.status === "ready"
             ? "原文与索引已保存，可以在对话中使用知识库。"
-            : "原文已保存，索引结果待核对，暂不参与检索。",
+            : r.data.status === "failed"
+              ? "索引失败，原文已保留，暂不参与检索。"
+              : "原文已保存，索引结果待核对，暂不参与检索。",
         );
       retry.current = null;
       setOpen(false);
@@ -346,10 +354,12 @@ export function ResourceWorkspace({
                   </span>
                   <span className="text-[10px] font-normal text-muted-foreground">
                     {doc.status === "ready"
-                      ? "可检索 · 版本 1"
-                      : doc.status === "unknown" || doc.status === "indexing"
-                        ? "索引待核对"
-                        : "原文已保存"}
+                      ? `可检索 · 版本 ${doc.version ?? 1}`
+                      : doc.status === "failed"
+                        ? "索引失败 · 原文保留"
+                        : doc.status === "unknown" || doc.status === "indexing"
+                          ? "索引待核对"
+                          : "原文已保存"}
                   </span>
                 </span>
               </Button>

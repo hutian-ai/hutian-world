@@ -5,3 +5,7 @@ export const saveResource = command("resource-actions.saveResource");
 export const findResources = command("resource-actions.findResources");
 export const readMemorySource = command("resource-actions.readMemorySource");
 export const observeMemory = command("resource-actions.observeMemory");
+
+export const readKnowledgeSource = command(
+  "resource-actions.readKnowledgeSource",
+);

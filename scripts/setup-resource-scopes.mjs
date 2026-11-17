@@ -1,51 +1,55 @@
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve, isAbsolute } from "node:path";
 import { parseArgs } from "node:util";
+import {
+  MemoryGatewayAdminClient,
+  provisionerConfig as memoryConfig,
+} from "../../memory-access/sdk/dist/index.js";
+import {
+  KnowledgeGatewayAdminClient,
+  provisionerConfig as knowledgeConfig,
+} from "../../knowledge-gateway/sdk/dist/index.js";
 
-// Local operator setup only. This configuration is never accepted from a Web request.
-const { values } = parseArgs({
-  options: {
-    python: { type: "string", default: "/usr/bin/python3" },
-    admin: { type: "string" },
-    policy: { type: "string" },
-    url: { type: "string", default: "http://127.0.0.1:3332" },
-    connection: { type: "string", default: "hindsight" },
-    writeMode: { type: "string", default: "infer" },
-  },
-});
+// Local operator setup. The gateway owns grants and backend namespace selection.
 process.umask(0o077);
 try {
-  const root = resolve(import.meta.dirname, "..");
+  const { values } = parseArgs({
+    options: { kind: { type: "string" }, config: { type: "string" } },
+  });
   if (
-    !values.admin ||
-    !values.policy ||
-    ![values.python, values.admin, values.policy].every(isAbsolute)
+    !["memory", "knowledge"].includes(values.kind) ||
+    !values.config ||
+    !isAbsolute(values.config)
   )
     throw new Error(
-      "请提供 Python、memory-access 的 admin.py 和 policy.json 的绝对路径。",
+      "Provide a module kind and an absolute private configuration path.",
     );
-  const origin = new URL(values.url);
-  if (origin.protocol !== "http:" || origin.hostname !== "127.0.0.1")
-    throw new Error("当前版本使用本机记忆接入地址。");
-  if (
-    !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(values.connection) ||
-    !["infer", "verbatim"].includes(values.writeMode)
-  )
-    throw new Error("请指定已由操作员配置的连接和明确写入模式。");
-  for (const file of [values.python, values.admin, values.policy])
-    if (!(await stat(file)).isFile()) throw new Error("所选文件不存在。");
-  await mkdir(resolve(root, ".local"), { recursive: true, mode: 0o700 });
+  const info = await stat(values.config);
+  if (!info.isFile() || info.size > 32768 || info.mode & 0o077)
+    throw new Error("Provisioner configuration must be a private file.");
+  const schema = values.kind === "memory" ? memoryConfig : knowledgeConfig;
+  const config = schema.parse(
+    JSON.parse(await readFile(values.config, "utf8")),
+  );
+  // Construction validates the transport address without provisioning a resource.
+  const AdminClient =
+    values.kind === "memory"
+      ? MemoryGatewayAdminClient
+      : KnowledgeGatewayAdminClient;
+  new AdminClient(config);
+  const directory = resolve(import.meta.dirname, "../.local");
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   await writeFile(
-    resolve(root, ".local/memory-provisioner.json"),
-    JSON.stringify(values, null, 2),
+    resolve(directory, `${values.kind}-provisioner.json`),
+    JSON.stringify(config, null, 2),
     { mode: 0o600, flag: "wx" },
   );
-  console.log("独立记忆空间的本机准备命令已配置；已有凭据和资源保持不变。");
+  console.log("已配置模块管理连接；已有资源和凭据保持不变。");
 } catch (error) {
   console.error(
     error?.code === "EEXIST"
-      ? "已有配置，未覆盖。请核对 .local/memory-provisioner.json。"
-      : "资源配置未写入。请核对所选路径和 README 中的配置说明。",
+      ? "已有配置，未覆盖。请核对对应的 .local/*-provisioner.json。"
+      : "资源配置未写入。请按 README 指定 --kind 与 --config，确认配置文件私有且包含网关 URL 和管理凭据。",
   );
   process.exitCode = 1;
 }

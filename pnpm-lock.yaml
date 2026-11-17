@@ -37,6 +37,12 @@ importers:
         version: 8.68.0(eslint@9.39.4(jiti@2.7.0)(supports-color@7.2.0))(supports-color@7.2.0)(typescript@6.0.3)
   apps/api:
     dependencies:
+      "@hutian-ai/knowledge-gateway-client":
+        specifier: link:../../../knowledge-gateway/sdk
+        version: link:../../../knowledge-gateway/sdk
+      "@hutian-ai/memory-gateway-client":
+        specifier: link:../../../memory-access/sdk
+        version: link:../../../memory-access/sdk
       "@harness-dock/client":
         specifier: https://github.com/hutian-ai/harness-dock/releases/download/sdk-v0.1.2/harness-dock-sdk-0.1.2.tgz
         version: https://github.com/hutian-ai/harness-dock/releases/download/sdk-v0.1.2/harness-dock-sdk-0.1.2.tgz

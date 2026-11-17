@@ -5,6 +5,8 @@ import {
   listMemories,
   memoryOperation,
   readMemory,
+  readKnowledge,
+  resourcePluginStatus,
   remember,
   saveKnowledge,
   searchKnowledge,
@@ -95,4 +97,15 @@ export async function observeMemory(id: string, scope?: ResourceScope) {
   } catch (e) {
     return failure(e);
   }
+}
+
+export async function readKnowledgeSource(id: string, scope?: ResourceScope) {
+  try {
+    return { ok: true as const, data: await readKnowledge(id, scope) };
+  } catch (e) {
+    return failure(e);
+  }
+}
+export async function inspectResourcePlugins(scope?: ResourceScope) {
+  return resourcePluginStatus(scope);
 }

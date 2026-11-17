@@ -8,9 +8,9 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "dev": "pnpm design:build && pnpm --filter @hutian-world/contracts build && pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web dev",
-    "build": "pnpm design:build && pnpm -r build",
-    "typecheck": "pnpm design:build && pnpm --filter @hutian-world/contracts build && pnpm -r typecheck",
+    "dev": "pnpm gateways:build && pnpm design:build && pnpm --filter @hutian-world/contracts build && pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web dev",
+    "build": "pnpm gateways:build && pnpm design:build && pnpm -r build",
+    "typecheck": "pnpm gateways:build && pnpm design:build && pnpm --filter @hutian-world/contracts build && pnpm -r typecheck",
     "start": "pnpm --parallel --filter @hutian-world/api --filter @hutian-world/web start",
     "services:start": "node scripts/local-services.mjs start",
     "services:stop": "node scripts/local-services.mjs stop",
@@ -26,7 +26,8 @@
     "prepare": "husky",
     "lint:staged": "lint-staged",
     "design:build": "pnpm --dir ../hutian-design build",
-    "design:dev": "pnpm --dir ../hutian-design dev"
+    "design:dev": "pnpm --dir ../hutian-design dev",
+    "gateways:build": "pnpm --dir ../memory-access/sdk build && pnpm --dir ../knowledge-gateway/sdk build"
   },
   "devDependencies": {
     "@eslint/js": "9.39.4",
