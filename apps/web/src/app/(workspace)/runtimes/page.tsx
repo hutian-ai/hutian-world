@@ -1,4 +1,3 @@
-import { Plug } from "lucide-react";
 import {
   DockConnectionDialog,
   RefreshDockButton,
@@ -6,17 +5,21 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { RuntimeDirectory } from "@/components/runtime-directory";
+import { WorkspaceSurface } from "@/components/workspace-surface";
+import { getDockConnection, getRuntimeOverview } from "@/lib/dock";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from "@hutian-ai/design/ui/alert";
 import { Badge } from "@hutian-ai/design/ui/badge";
-import { WorkspaceSurface } from "@/components/workspace-surface";
-import { getDockConnection } from "@/lib/dock";
+import { Plug } from "lucide-react";
 
 export default async function RuntimesPage() {
-  const connection = await getDockConnection();
+  const [connection, activity] = await Promise.all([
+    getDockConnection(),
+    getRuntimeOverview({}).catch(() => null),
+  ]);
   const connected = connection.state === "connected";
   return (
     <>
@@ -41,6 +44,7 @@ export default async function RuntimesPage() {
       <WorkspaceSurface label="电脑目录">
         {connected ? (
           <RuntimeDirectory
+            activity={activity}
             devices={connection.devices}
             endpoint={connection.endpoint}
           />

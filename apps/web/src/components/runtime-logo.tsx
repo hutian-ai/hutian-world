@@ -14,7 +14,9 @@ export function RuntimeLogo({
     ? "/runtime-logos/openai.svg"
     : normalized === "deepseek-harness" || normalized === "dsh"
       ? "/runtime-logos/deepseek.svg"
-      : null;
+      : normalized === "zcode"
+        ? "/runtime-logos/zcode.png"
+        : null;
 
   if (!src) {
     return <Terminal className={cn("size-4", className)} aria-hidden="true" />;

@@ -176,6 +176,7 @@ export const operationMetadata = {
     formResult: false,
     refresh: false,
   },
+  "runtimes.overview": { formResult: false, refresh: false },
   "runtimes.device": {
     formResult: false,
     refresh: false,

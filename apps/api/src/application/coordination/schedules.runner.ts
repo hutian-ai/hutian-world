@@ -161,7 +161,7 @@ export class SchedulesRunner {
         runAsUserId: run.run_as_user_id,
       });
       // Conditional updates preserve terminal states and the original native run.
-      await this.db
+      const changed = await this.db
         .createQueryBuilder()
         .update(ScheduledRunSchema)
         .set({
@@ -187,7 +187,10 @@ export class SchedulesRunner {
           replyEventId: update.replyEventId,
         })
         .execute();
-      return !active.includes(update.state);
+      return (
+        Boolean(changed.affected) &&
+        scheduleTerminalStates.includes(update.state)
+      );
     } catch (error) {
       const attempts = run.observe_attempts + 1;
       console.error(

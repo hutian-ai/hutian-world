@@ -67,6 +67,7 @@ export function UserMessage() {
   );
   const names: Record<string, string> = {
     running: "正在处理",
+    waiting_permission: "等待授权",
     replied: "已回复",
     completed: "执行完成，回复待核对",
     unknown: "结果待核对",
@@ -173,7 +174,13 @@ export function UserMessage() {
           </Button>
         ))}
       {jobs
-        ?.filter((job) => !job.activity && !queue?.length && Boolean(job.error))
+        ?.filter(
+          (job) =>
+            (!job.activity ||
+              ["failed", "unknown", "blocked"].includes(job.state)) &&
+            !queue?.length &&
+            Boolean(job.error),
+        )
         .map((job) => (
           <details
             key={job.agentId}

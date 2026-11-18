@@ -3,7 +3,7 @@ import { z } from "zod";
 const inspectedModel = z.object({
   id: z.string(),
   efforts: z.array(z.string()).catch([]),
-  serviceTiers: z.array(z.string()).catch([]),
+  serviceTiers: z.array(z.string()).optional(),
 });
 const option = z.object({ value: z.string(), name: z.string() });
 const optionGroup = z.object({ options: z.array(option) });
@@ -48,6 +48,12 @@ export function runtimeModels(
     efforts: details.get(id)?.efforts ?? [],
     serviceTiers: details.get(id)?.serviceTiers ?? [],
     current: currentModelId === id,
+    fastModeSupport:
+      details.get(id)?.serviceTiers === undefined
+        ? ("unreported" as const)
+        : details.get(id)!.serviceTiers!.includes("priority")
+          ? ("supported" as const)
+          : ("unsupported" as const),
   }));
 }
 export function runtimeDefaults(

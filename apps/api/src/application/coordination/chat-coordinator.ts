@@ -96,6 +96,7 @@ export class ChatCoordinator {
           "queued",
           "preparing",
           "running",
+          "waiting_permission",
           "unknown",
           "replied",
           "failed",
@@ -106,7 +107,7 @@ export class ChatCoordinator {
       )
         throw new Error();
       // Keep the conditional update atomic: an observation cannot replace the native run identity.
-      await this.db.transaction(async (manager) => {
+      const applied = await this.db.transaction(async (manager) => {
         const changed = await manager
           .createQueryBuilder()
           .update(ChatRequestSchema)
@@ -149,8 +150,9 @@ export class ChatCoordinator {
             })
             .orIgnore()
             .execute();
+        return Boolean(changed.affected);
       });
-      return chatTerminalStates.includes(update.state);
+      return applied && chatTerminalStates.includes(update.state);
     } catch (error) {
       const attempts = row.observe_attempts + 1;
       console.error(

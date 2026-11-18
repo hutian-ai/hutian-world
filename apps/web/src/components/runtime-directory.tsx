@@ -1,12 +1,14 @@
 "use client";
+import type { RuntimeOverview } from "@hutian-world/contracts";
+import { workloadLabel } from "./runtime-activity";
 
-import Link from "@/lib/navigation";
-import { useState } from "react";
-import { ArrowRight, HardDrive, Search } from "lucide-react";
 import { RefreshDockButton } from "@/components/dock-connection";
 import { EmptyState } from "@/components/empty-state";
 import { RuntimeLogo } from "@/components/runtime-logo";
 import { StatusBadge } from "@/components/status-badge";
+import type { DockDirectoryDevice } from "@/lib/dock";
+import Link from "@/lib/navigation";
+import { deviceLabel, deviceStatus } from "@/lib/runtime-display";
 import { Button } from "@hutian-ai/design/ui/button";
 import { Input } from "@hutian-ai/design/ui/input";
 import {
@@ -24,8 +26,8 @@ import {
   TableHeader,
   TableRow,
 } from "@hutian-ai/design/ui/table";
-import type { DockDirectoryDevice } from "@/lib/dock";
-import { deviceLabel, deviceStatus } from "@/lib/runtime-display";
+import { ArrowRight, HardDrive, Search } from "lucide-react";
+import { useState } from "react";
 
 const platformNames: Record<string, string> = {
   darwin: "macOS",
@@ -36,8 +38,10 @@ const platformNames: Record<string, string> = {
 export function RuntimeDirectory({
   devices,
   endpoint,
+  activity,
 }: {
   devices: DockDirectoryDevice[];
+  activity: RuntimeOverview | null;
   endpoint: string;
 }) {
   const [search, setSearch] = useState("");
@@ -104,9 +108,10 @@ export function RuntimeDirectory({
         <Table className="min-w-[620px] table-fixed">
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[35%] pl-5">机器编号</TableHead>
+              <TableHead className="w-[35%] pl-5">电脑</TableHead>
               <TableHead>Harness</TableHead>
               <TableHead className="w-28">可用 Runtime</TableHead>
+              <TableHead className="w-40">本工作台的工作</TableHead>
               <TableHead className="w-24">连接状态</TableHead>
               <TableHead className="w-10">
                 <span className="sr-only">打开机器</span>
@@ -183,6 +188,15 @@ export function RuntimeDirectory({
                   {device.inventoryState === "online"
                     ? `${device.runtimes.filter((r) => r.status === "ready").length} 个`
                     : "—"}
+                </TableCell>
+                <TableCell className="text-xs text-muted-foreground">
+                  {activity
+                    ? workloadLabel(
+                        activity.summaries.filter(
+                          (s) => s.nodeId === device.nodeId,
+                        ),
+                      )
+                    : "暂未确认"}
                 </TableCell>
                 <TableCell>
                   <StatusBadge {...deviceStatus(device.connected)} />

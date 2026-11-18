@@ -5,7 +5,11 @@ import {
   requireLocalConnection,
 } from "../../modules/access/connection-access.js";
 import type { ApplicationServices } from "../application-services.js";
-import { communicationRequest, readConversation } from "./communications.js";
+import {
+  communicationRequest,
+  readAgentRun,
+  readRoom,
+} from "./communications.js";
 export async function dispatchChat(
   app: Pick<
     ApplicationServices,
@@ -38,7 +42,7 @@ export async function dispatchChat(
     await requireLocalConnection(app, "matrix");
     await requireLocalConnection(app, "dock");
     const snapshot = row.snapshot;
-    const state = await readConversation(app, snapshot.roomId);
+    const state = await readRoom(app, snapshot.roomId);
     if (!state.agents.some((a) => a.id === snapshot.agentId && a.joined))
       return result("blocked", "原成员已不在当前会话");
     const source = String(snapshot.context.instructionsSource ?? "");
@@ -56,20 +60,19 @@ export async function dispatchChat(
       )
         return result("blocked", "原角色通信身份已变更");
     }
-    const status = (await communicationRequest(
+    const status = await readAgentRun(
       app,
-      `/api/agent/status?${new URLSearchParams({ roomId: snapshot.roomId, eventId: snapshot.eventId, agentId: snapshot.agentId })}`,
-    )) as {
-      job: {
-        runId: string;
-        state: string;
-        replyEventId: string | null;
-        hasReceipt: boolean;
-      } | null;
-      active: boolean;
-      queued: boolean;
-      queueState?: string | null;
-    };
+      snapshot.roomId,
+      snapshot.eventId,
+      snapshot.agentId,
+    );
+    if (row.runId && status.job?.runId !== row.runId)
+      return result(
+        status.job ? "blocked" : "unknown",
+        status.job
+          ? "原执行关联不一致，未采用其他运行的结果"
+          : "原宿主记录暂不可读取；保留原运行，未重新执行",
+      );
     if (status.queueState === "cancelled" && !status.job)
       return result("cancelled");
     if (status.job?.replyEventId) {
@@ -79,25 +82,47 @@ export async function dispatchChat(
       status.job &&
       ["failed", "cancelled", "skipped"].includes(status.job.state)
     )
-      return result(status.job.state, null, status.job.runId);
+      return result(
+        status.job.state,
+        status.job.error ?? null,
+        status.job.runId,
+      );
+    if (status.active && status.pendingPermissions.length)
+      return result(
+        "waiting_permission",
+        "等待你授权，请打开原会话查看请求。",
+        status.job?.runId ?? row.runId,
+      );
     if (status.active)
       return result("running", null, status.job?.runId ?? row.runId);
+    if (status.queueState === "paused")
+      return result(
+        "unknown",
+        "前序工作未完成，排队已暂停；请在原会话中选择开始处理或移除。",
+        status.job?.runId ?? row.runId,
+      );
     if (status.queued) return result("queued");
     if (status.job) {
-      if (row.runId && row.runId !== status.job.runId)
-        return result("blocked", "原执行关联不一致");
       if (!status.job.hasReceipt)
         return result(
           "unknown",
           "原请求尚无回执，保留记录，未重新派发",
           status.job.runId,
         );
-      await communicationRequest(app, "/api/agent/resume", {
-        roomId: snapshot.roomId,
-        eventId: snapshot.eventId,
-        agentId: snapshot.agentId,
-      });
-      return result("unknown", null, status.job.runId);
+      if (
+        !status.busy &&
+        (!status.checkedAt || Date.now() - status.checkedAt >= 30000)
+      )
+        await communicationRequest(app, "/api/agent/resume", {
+          roomId: snapshot.roomId,
+          eventId: snapshot.eventId,
+          agentId: snapshot.agentId,
+        });
+      return result(
+        "unknown",
+        status.job.error ?? status.error ?? "正在核对原运行与交付，未重新执行",
+        status.job.runId,
+      );
     }
     await communicationRequest(app, "/api/agent", {
       roomId: snapshot.roomId,

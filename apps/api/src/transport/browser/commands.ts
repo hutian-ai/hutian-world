@@ -1,3 +1,4 @@
+import { readRuntimeOverview } from "../../application/runtimes/runtime-overview.js";
 import type { WorkbenchCommands } from "@hutian-world/contracts";
 import type { ApplicationServices } from "../../application/application-services.js";
 import * as m1 from "../../application/conversations/chat-actions.js";
@@ -75,6 +76,7 @@ export function createCommands(app: ApplicationServices) {
     "conversations.directory": bind(app, m12.readDirectory),
     "conversations.read": bind(app, m12.readConversation),
     "runtimes.renameDevice": bind(app, m13.saveRuntimeDeviceName),
+    "runtimes.overview": bind(app, readRuntimeOverview),
     "runtimes.connection": bind(app, m13.getDockConnection),
     "runtimes.device": bind(app, m13.getDockDevice),
     "resources.resolveResourceScope": bind(app, m14.resolveResourceScope),

@@ -1,3 +1,4 @@
+import { RuntimeActivityRepository } from "../modules/runtime-devices/runtime-activity.repository.js";
 import { Inject, Injectable } from "@nestjs/common";
 import { AccessContexts } from "../modules/access/access-context.service.js";
 import { ChatRequestsService } from "../modules/chat-requests/chat-requests.service.js";
@@ -11,6 +12,8 @@ import { WorkspaceService } from "../modules/workspace/workspace.service.js";
 @Injectable()
 export class ApplicationServices {
   constructor(
+    @Inject(RuntimeActivityRepository)
+    readonly runtimeActivity: RuntimeActivityRepository,
     @Inject(AccessContexts) readonly contexts: AccessContexts,
     @Inject(WorkspaceService) readonly workspace: WorkspaceService,
     @Inject(RolesService) readonly roles: RolesService,

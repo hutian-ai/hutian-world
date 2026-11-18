@@ -7,5 +7,9 @@
   `deepseek-ai/DeepSeek-LLM` at commit `f8b3d77beb4449d77932eccc6abe08826ad3c608`,
   `images/badge.svg`. The repository code license is MIT; DeepSeek trademarks remain owned by DeepSeek.
 
+- `zcode.png`: unmodified application icon from the installed ZCode desktop app,
+  `Contents/Resources/icon.png`, retrieved 2026-11-18. ZCode artwork and trademarks
+  remain owned by Z.ai / Zhipu; included only to identify the installed Runtime.
+
 The assets identify the Runtime provider only. They are not hutian brand marks and must not be recolored,
 distorted, or used to imply endorsement.

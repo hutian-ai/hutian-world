@@ -441,6 +441,9 @@ export interface WorkbenchCommands {
     | { ok: true; customName: string | null; version: number }
     | { ok: false; error: string }
   >;
+  "runtimes.overview": (
+    input: Contracts.RuntimeOverviewInput,
+  ) => Promise<Contracts.RuntimeOverview>;
   "runtimes.connection": () => Promise<DockConnection>;
   "runtimes.device": (nodeId: string) => Promise<
     | {
@@ -472,6 +475,7 @@ export interface WorkbenchCommands {
             efforts: string[];
             serviceTiers: string[];
             current: boolean;
+            fastModeSupport: "supported" | "unsupported" | "unreported";
           }[];
           permissionModes: { id: string; name: string }[];
           defaults: {
@@ -481,6 +485,8 @@ export interface WorkbenchCommands {
             serviceTier: string | undefined;
           };
           sessionResume: boolean;
+          checkedAt: string | null;
+          imageInput: boolean | null;
         }[];
         platform: { hostname: string; platform: string };
         message?: undefined;

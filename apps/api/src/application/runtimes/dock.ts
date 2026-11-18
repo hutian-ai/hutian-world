@@ -246,6 +246,14 @@ function inventoryDevice(node: InventoryNode, names: RuntimeDeviceNames) {
       defaults: runtimeDefaults(provider),
       permissionModes: runtimePermissions(provider).modes,
       sessionResume: provider.sessionResumeMode === "native",
+      checkedAt: provider.readiness?.checkedAt ?? null,
+      imageInput:
+        z
+          .object({
+            promptCapabilities: z.object({ image: z.boolean() }).optional(),
+          })
+          .safeParse(provider.capabilities).data?.promptCapabilities?.image ??
+        null,
       ...(provider.error
         ? {
             message:

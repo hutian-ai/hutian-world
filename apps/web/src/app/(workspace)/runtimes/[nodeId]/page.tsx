@@ -1,20 +1,30 @@
-import { RuntimeDeviceName } from "@/components/runtime-device-name";
-import Link from "@/lib/navigation";
-import { ArrowRight, HardDrive, ServerCog } from "lucide-react";
-import { notFound } from "@/lib/navigation";
-import { z } from "zod";
+import {
+  RuntimeSummary,
+  RuntimeMembers,
+  RuntimeActiveWork,
+  RuntimeRecentWork,
+  workloadLabel,
+} from "@/components/runtime-activity";
 import { RefreshDockButton } from "@/components/dock-connection";
 import { EmptyState } from "@/components/empty-state";
 import { ObjectHeader } from "@/components/object-header";
+import { PageNavigation } from "@/components/page-navigation";
+import { RuntimeDeviceName } from "@/components/runtime-device-name";
 import { RuntimeLogo } from "@/components/runtime-logo";
 import { StatusBadge } from "@/components/status-badge";
+import { getDockDevice, getRuntimeOverview } from "@/lib/dock";
+import Link, { notFound } from "@/lib/navigation";
+import {
+  deviceLabel,
+  deviceStatus,
+  runtimeStatus,
+} from "@/lib/runtime-display";
 import {
   Alert,
   AlertDescription,
   AlertTitle,
 } from "@hutian-ai/design/ui/alert";
 import { Badge } from "@hutian-ai/design/ui/badge";
-import { PageNavigation } from "@/components/page-navigation";
 import {
   Table,
   TableBody,
@@ -23,12 +33,8 @@ import {
   TableHeader,
   TableRow,
 } from "@hutian-ai/design/ui/table";
-import { getDockDevice } from "@/lib/dock";
-import {
-  deviceLabel,
-  deviceStatus,
-  runtimeStatus,
-} from "@/lib/runtime-display";
+import { ArrowRight, HardDrive, ServerCog } from "lucide-react";
+import { z } from "zod";
 
 export default async function RuntimeDevicePage({
   params,
@@ -37,10 +43,19 @@ export default async function RuntimeDevicePage({
 }) {
   const { nodeId } = await params;
   if (!z.uuid().safeParse(nodeId).success) notFound();
-  const result = await getDockDevice(nodeId);
+  const [result, activity] = await Promise.all([
+    getDockDevice(nodeId),
+    getRuntimeOverview({ nodeId }).catch(() => null),
+  ]);
   const title =
     result.state === "error" ? "电脑详情" : deviceLabel(result.device);
   const runtimes = result.state === "online" ? result.runtimes : [];
+  const remembered = [
+    ...new Set([
+      ...(activity?.members.map((m) => m.provider) ?? []),
+      ...(activity?.summaries.map((s) => s.provider) ?? []),
+    ]),
+  ];
   const availableCount = runtimes.filter(
     (runtime) => runtime.status === "ready",
   ).length;
@@ -76,6 +91,7 @@ export default async function RuntimeDevicePage({
           </div>
         }
       />
+      {activity && <RuntimeSummary data={activity} />}
       <section
         aria-labelledby="runtime-instance-directory-title"
         className="min-w-0"
@@ -131,6 +147,7 @@ export default async function RuntimeDevicePage({
                   <TableHead className="text-[10px] text-muted-foreground">
                     模型
                   </TableHead>
+                  <TableHead className="w-40">本工作台的工作</TableHead>
                   <TableHead className="w-28 pr-4">
                     <span className="sr-only">详情</span>
                   </TableHead>
@@ -175,6 +192,15 @@ export default async function RuntimeDevicePage({
                         ? `${runtime.models.length} 个`
                         : "未报告"}
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {activity
+                        ? workloadLabel(
+                            activity.summaries.filter(
+                              (s) => s.provider === runtime.key,
+                            ),
+                          )
+                        : "暂未确认"}
+                    </TableCell>
                     <TableCell className="pr-4 text-right">
                       <span className="inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium text-muted-foreground transition-colors group-focus-within/row:text-foreground group-hover/row:text-foreground">
                         查看详情{" "}
@@ -188,6 +214,47 @@ export default async function RuntimeDevicePage({
           )}
         </div>
       </section>
+      {result.state !== "online" && remembered.length > 0 && (
+        <section className="space-y-3 rounded-lg border bg-card p-5">
+          <h2 className="text-sm font-semibold">曾使用的 Runtime</h2>
+          <p className="text-xs text-muted-foreground">
+            来自成员绑定与工作记录；当前安装和可用状态尚未确认。
+          </p>
+          <div className="flex flex-wrap gap-4">
+            {remembered.map((provider) => (
+              <Link
+                key={provider}
+                href={`/runtimes/${nodeId}/${encodeURIComponent(provider)}`}
+                className="inline-flex items-center gap-2 text-sm hover:underline"
+              >
+                <RuntimeLogo driverKey={provider} className="size-4" />
+                {(
+                  { codex: "Codex", zcode: "ZCode", dsh: "DeepSeek" } as Record<
+                    string,
+                    string
+                  >
+                )[provider] ?? provider}
+                <ArrowRight className="size-3" />
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+      {activity ? (
+        <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="min-w-0 space-y-6">
+            <RuntimeActiveWork data={activity} />
+            <RuntimeRecentWork data={activity} input={{ nodeId }} preview />
+          </div>
+          <RuntimeMembers data={activity} />
+        </div>
+      ) : (
+        <Alert>
+          <AlertDescription>
+            工作与成员信息暂未读取，请刷新重试。
+          </AlertDescription>
+        </Alert>
+      )}
     </>
   );
 }
